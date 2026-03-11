@@ -1,0 +1,1135 @@
+import os
+import time
+import uuid
+from typing import List, Optional
+from flask import Blueprint, jsonify, request, send_from_directory, abort, make_response
+from datetime import datetime, timedelta, timezone
+import requests
+import re
+from bs4 import BeautifulSoup  # type: ignore
+import pandas as pd  # type: ignore
+from supabase import create_client
+import sys
+import os
+
+# Add the root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from supabase_client import get_supabase
+from models.internship import InternshipOpportunity
+from schemas.internship_schemas import (
+    InternshipCreate, 
+    InternshipUpdate, 
+    InternshipResponse, 
+    InternshipListResponse,
+    InternshipType
+)
+
+bp = Blueprint('internships', __name__)
+supabase = get_supabase()
+
+# Table names
+INTERNSHIPS_TABLE = 'internships'
+
+# Error messages
+INTERNSHIP_NOT_FOUND = "Internship opportunity not found"
+INTERNAL_SERVER_ERROR = "An error occurred while processing your request"
+
+def _save_internship_opportunity(internship_data: dict) -> Optional[dict]:
+    """Save an internship opportunity to the database"""
+    try:
+        # Convert the data to the InternshipOpportunity model
+        internship = InternshipOpportunity(
+            title=internship_data.get('title', 'Internship Position'),
+            company=internship_data.get('company', 'Company'),
+            location=internship_data.get('location', 'Remote'),
+            type=internship_data.get('type', InternshipType.REMOTE),
+            duration=internship_data.get('duration'),
+            min_stipend=internship_data.get('min_stipend'),
+            max_stipend=internship_data.get('max_stipend'),
+            is_unpaid=internship_data.get('is_unpaid', False),
+            apply_url=internship_data.get('apply_url'),
+            source=internship_data.get('source', 'External'),
+            description=internship_data.get('description'),
+            deadline=internship_data.get('deadline'),
+            is_active=internship_data.get('is_active', True)
+        )
+        
+        # Save to database
+        result = supabase.table(INTERNSHIPS_TABLE).insert(internship.to_dict()).execute()
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        print(f"Error saving internship: {str(e)}")
+        return None
+
+def _parse_stipend(stipend_str: str) -> tuple[Optional[float], Optional[float], bool]:
+    """Parse stipend string into min, max, and is_unpaid"""
+    if not stipend_str or not isinstance(stipend_str, str):
+        return None, None, True
+    
+    stipend_str = stipend_str.lower().strip()
+    
+    # Handle unpaid cases
+    if 'unpaid' in stipend_str or 'performance' in stipend_str:
+        return None, None, True
+    
+    # Handle stipend ranges like "5000-10000"
+    if '-' in stipend_str:
+        try:
+            min_s, max_s = stipend_str.split('-')
+            min_stipend = float(''.join(filter(str.isdigit, min_s)))
+            max_stipend = float(''.join(filter(str.isdigit, max_s)))
+            return min_stipend, max_stipend, False
+        except (ValueError, AttributeError):
+            pass
+    
+    # Handle single value stipend
+    try:
+        stipend = float(''.join(filter(str.isdigit, stipend_str)))
+        return stipend, stipend, False
+    except (ValueError, AttributeError):
+        pass
+    
+    return None, None, True
+
+def _parse_duration(duration_str: str) -> str:
+    """Parse and standardize duration string"""
+    if not duration_str:
+        return "Not specified"
+    
+    # Standardize common duration formats
+    duration = duration_str.lower().strip()
+    
+    # Map common variations to standard format
+    duration_mapping = {
+        '1m': '1 month',
+        '2m': '2 months',
+        '3m': '3 months',
+        '6m': '6 months',
+        '1y': '1 year',
+        'full-time': 'Full-time',
+        'part-time': 'Part-time',
+        'flexible': 'Flexible'
+    }
+    
+    return duration_mapping.get(duration, duration_str)
+
+def _parse_posted_date(posted_str: str) -> datetime:
+    """Parse posted date string into datetime"""
+    if not posted_str:
+        return datetime.utcnow()
+    
+    posted_str = posted_str.lower()
+    now = datetime.utcnow()
+    
+    if 'today' in posted_str:
+        return now
+    elif 'yesterday' in posted_str:
+        return now - timedelta(days=1)
+    elif 'day' in posted_str:
+        try:
+            days_ago = int(''.join(filter(str.isdigit, posted_str)) or '0')
+            return now - timedelta(days=days_ago)
+        except (ValueError, AttributeError):
+            pass
+    
+    return now
+
+def fetch_internships_from_internshala():
+    """Scrape internships from Internshala"""
+    try:
+        print("\n" + "="*60)
+        print("[INTERNSHALA] Starting to fetch internships...")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
+        }
+
+        # Fetch the internships page with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"[INTERNSHALA] Attempt {attempt + 1} to fetch internships page...")
+                response = requests.get(
+                    'https://internshala.com/internships',
+                    headers=headers,
+                    timeout=15
+                )
+                response.raise_for_status()
+                print(f"[INTERNSHALA] Successfully fetched internships page (Status: {response.status_code})")
+                break  # Exit retry loop if successful
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    print(f"[INTERNSHALA] Failed to fetch internships after {max_retries} attempts: {str(e)}")
+                    return []
+                print(f"[INTERNSHALA] Attempt {attempt + 1} failed, retrying... ({str(e)})")
+                time.sleep(2)  # Wait before retrying
+
+        # Parse the HTML content
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Save the HTML for debugging
+        with open('internshala_page.html', 'w', encoding='utf-8') as f:
+            f.write(soup.prettify())
+            
+        print("[INTERNSHALA] Saved page content to internshala_page.html for debugging")
+        
+        internships = []
+
+        # Find all internship cards - try multiple selectors
+        internship_cards = soup.find_all('div', class_='individual_internship')
+        
+        # If no cards found with the standard class, try alternative selectors
+        if not internship_cards:
+            print("[INTERNSHALA] No cards found with 'individual_internship' class, trying alternatives...")
+            # Try alternative selectors
+            alternative_selectors = [
+                'div.internship_meta',
+                'div.internship-list',
+                'div.internship-card',
+                'div.internship'
+            ]
+            
+            for selector in alternative_selectors:
+                internship_cards = soup.select(selector)
+                if internship_cards:
+                    print(f"[INTERNSHALA] Found {len(internship_cards)} cards with selector: {selector}")
+                    break
+        
+        print(f"[INTERNSHALA] Found {len(internship_cards)} internship cards")
+
+        for idx, card in enumerate(internship_cards[:50]):  # Limit to 50
+            try:
+                # Extract title - try multiple selectors
+                title = 'Internship Position'
+                title_elem = None
+                
+                # Try different selectors for title
+                selectors = [
+                    ('h3.heading_4_5', None),
+                    ('a.view_detail_button', None),
+                    ('div.heading_4_5', None),
+                    ('h4.heading_4_5', None),
+                    ('h3', {'class': 'heading_4_5'}),
+                    ('a', {'class': 'view_detail_button'}),
+                    ('h3', None),
+                    ('h4', None),
+                    ('a.title', None)
+                ]
+                
+                for selector, attrs in selectors:
+                    if not title_elem:
+                        title_elem = card.find(selector, attrs) if attrs else card.select_one(selector)
+                    if title_elem:
+                        title_text = title_elem.get_text(strip=True)
+                        if title_text and title_text.lower() != 'view':
+                            title = title_text
+                            break
+                
+                # Clean up the title
+                title = re.sub(r'\s*[\-:]\s*$', '', title)  # Remove trailing dashes/colons
+                title = re.sub(r'^[^\w\s]+', '', title)  # Remove leading non-word chars
+                title = title.strip()
+                
+                # If we still have a generic title, try to get it from the URL
+                if title.lower() in ['internship', 'view internship', 'view details']:
+                    link_elem = card.find('a', class_='view_detail_button')
+                    if link_elem and link_elem.get('href'):
+                        # Extract from URL path (e.g., /internship/detail/backend-development-internship-in-chennai-at-cube-arts-engineering-college...)
+                        url_parts = link_elem['href'].split('/')
+                        if len(url_parts) >= 4 and 'detail' in url_parts:
+                            detail_part = url_parts[url_parts.index('detail') + 1]
+                            if detail_part and '-' in detail_part:
+                                # Convert from slug to title case
+                                title = ' '.join(word.capitalize() for word in detail_part.split('-'))
+                                title = re.sub(r'\b(At|In|For|And|Or|The|A|An)\b', 
+                                            lambda m: m.group(0).lower(), 
+                                            title)
+
+                # Extract company
+                company_elem = card.find('p', class_='company_name') or card.find('a', class_='link_display_like_text')
+                company = company_elem.get_text(strip=True) if company_elem else 'Company'
+
+                # Extract location
+                location_elem = card.find('a', class_='location_link') or card.find('span', class_='location')
+                location = location_elem.get_text(strip=True) if location_elem else 'Remote'
+
+                # Extract stipend
+                stipend_elem = card.find('span', class_='stipend')
+                stipend = stipend_elem.get_text(strip=True) if stipend_elem else 'Unpaid'
+
+                # Extract duration
+                duration_elem = card.find('span', class_='duration')
+                duration = duration_elem.get_text(strip=True) if duration_elem else 'Not specified'
+
+                # Extract link
+                link_elem = card.find('a', class_='view_detail_button')
+                link = 'https://internshala.com' + link_elem['href'] if link_elem and link_elem.get('href') else 'https://internshala.com'
+
+                # Extract posted date
+                posted_elem = card.find('span', class_='status')
+                posted = posted_elem.get_text(strip=True) if posted_elem else 'Recently posted'
+
+                # Parse stipend
+                min_stipend, max_stipend, is_unpaid = _parse_stipend(stipend)
+                
+                # Create internship object
+                internship = {
+                    'title': title,
+                    'company': company,
+                    'location': location,
+                    'type': 'internship',
+                    'duration': duration,
+                    'min_stipend': min_stipend,
+                    'max_stipend': max_stipend,
+                    'is_unpaid': is_unpaid,
+                    'apply_url': link,
+                    'source': 'Internshala',
+                    'description': f"{title} at {company}. Duration: {duration}. Stipend: {stipend}",
+                    'posted_date': _parse_posted_date(posted),
+                    'is_active': True
+                }
+
+                internships.append(internship)
+
+            except Exception as e:
+                print(f"[INTERNSHALA] Error parsing card {idx}: {str(e)}")
+                continue
+
+        print(f"[INTERNSHALA] Successfully parsed {len(internships)} internships")
+        return internships
+
+    except Exception as e:
+        print(f"[INTERNSHALA] Error: {str(e)}")
+        return []
+
+def fetch_internships_from_themuse():
+    """Fetch internships from The Muse API"""
+    try:
+        print("[THE MUSE] Fetching internships...")
+        internships = []
+
+        # The Muse API endpoint
+        response = requests.get(
+            'https://www.themuse.com/api/public/jobs',
+            params={
+                'category': 'Engineering',
+                'level': 'Entry Level',
+                'page': 0,
+                'descending': 'true',
+                'api_key': 'public'  # The Muse has a public API
+            },
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        jobs = data.get('results', [])
+        print(f"[THE MUSE] Found {len(jobs)} jobs")
+
+        for job in jobs[:50]:  # Limit to 50
+            try:
+                # Extract categories/tags
+                categories = [cat.get('name', '') for cat in job.get('categories', [])]
+                levels = [level.get('name', '') for level in job.get('levels', [])]
+
+                # Filter for entry-level/internship positions
+                title_lower = job.get('name', '').lower()
+                is_relevant = any(term in title_lower for term in ['intern', 'entry', 'junior', 'graduate', 'trainee'])
+
+                if is_relevant or 'Entry Level' in levels or 'Internship' in levels:
+                    company_info = job.get('company', {})
+                    locations = job.get('locations', [])
+                    location_names = [loc.get('name', 'Remote') for loc in locations]
+
+                    internship = {
+                        'id': f"themuse-{job.get('id')}",
+                        'title': job.get('name', 'Position'),
+                        'company': company_info.get('name', 'Company'),
+                        'location': ', '.join(location_names) if location_names else 'Remote',
+                        'url': job.get('refs', {}).get('landing_page', 'https://www.themuse.com'),
+                        'source': 'The Muse',
+                        'job_type': levels[0] if levels else 'Entry Level',
+                        'description': job.get('contents', 'No description available')[:300],
+                        'tags': categories + levels,
+                        'posted': job.get('publication_date', 'Recently posted')
+                    }
+
+                    internships.append(internship)
+
+            except Exception as e:
+                print(f"[THE MUSE] Error parsing job: {str(e)}")
+                continue
+
+        print(f"[THE MUSE] Successfully parsed {len(internships)} internships")
+        return internships
+
+    except Exception as e:
+        print(f"[THE MUSE] Error: {str(e)}")
+        return []
+
+def fetch_internships_from_remotive():
+    """Fetch internships from Remotive API"""
+    try:
+        print("[REMOTIVE] Fetching internships...")
+        internships = []
+
+        # Remotive API endpoint
+        response = requests.get(
+            'https://remotive.io/api/remote-jobs',
+            params={
+                'search': 'intern',
+                'limit': 50
+            },
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        jobs = data.get('jobs', [])
+        print(f"[REMOTIVE] Found {len(jobs)} jobs")
+
+        for job in jobs:
+            try:
+                title_lower = job.get('title', '').lower()
+                description_lower = job.get('description', '').lower()
+
+                # Filter for internship/entry-level positions
+                is_relevant = any(term in title_lower + ' ' + description_lower
+                                for term in ['intern', 'entry', 'junior', 'graduate', 'trainee'])
+
+                if is_relevant:
+                    # Clean description
+                    description = re.sub(r'<[^>]*>', '', job.get('description', ''))
+                    description = description[:300] + '...' if len(description) > 300 else description
+
+                    internship = {
+                        'id': f"remotive-{job.get('id')}",
+                        'title': job.get('title', 'Position'),
+                        'company': job.get('company_name', 'Company'),
+                        'location': job.get('candidate_required_location', 'Remote'),
+                        'url': job.get('url', 'https://remotive.io'),
+                        'source': 'Remotive',
+                        'job_type': job.get('job_type', 'Full-time'),
+                        'description': description,
+                        'tags': job.get('tags', []),
+                        'posted': job.get('publication_date', 'Recently posted')
+                    }
+
+                    internships.append(internship)
+
+            except Exception as e:
+                print(f"[REMOTIVE] Error parsing job: {str(e)}")
+                continue
+
+        print(f"[REMOTIVE] Successfully parsed {len(internships)} internships")
+        return internships
+
+    except Exception as e:
+        print(f"[REMOTIVE] Error: {str(e)}")
+        return []
+
+def fetch_all_internships():
+    """Fetch internships from all sources with fallback logic"""
+    all_internships = []
+    sources_tried = []
+    sources_succeeded = []
+
+    # Try Internshala first (scraping)
+    try:
+        print("\n" + "="*60)
+        print("Attempting to fetch from Internshala...")
+        internshala_jobs = fetch_internships_from_internshala()
+        if internshala_jobs:
+            all_internships.extend(internshala_jobs)
+            sources_succeeded.append('Internshala')
+            print(f"✓ Internshala: {len(internshala_jobs)} internships")
+        sources_tried.append('Internshala')
+    except Exception as e:
+        print(f"✗ Internshala failed: {str(e)}")
+        sources_tried.append('Internshala (failed)')
+
+    # Try The Muse API
+    try:
+        print("\n" + "="*60)
+        print("Attempting to fetch from The Muse...")
+        themuse_jobs = fetch_internships_from_themuse()
+        if themuse_jobs:
+            all_internships.extend(themuse_jobs)
+            sources_succeeded.append('The Muse')
+            print(f"✓ The Muse: {len(themuse_jobs)} internships")
+        sources_tried.append('The Muse')
+    except Exception as e:
+        print(f"✗ The Muse failed: {str(e)}")
+        sources_tried.append('The Muse (failed)')
+
+    # Try Remotive API
+    try:
+        print("\n" + "="*60)
+        print("Attempting to fetch from Remotive...")
+        remotive_jobs = fetch_internships_from_remotive()
+        if remotive_jobs:
+            all_internships.extend(remotive_jobs)
+            sources_succeeded.append('Remotive')
+            print(f"✓ Remotive: {len(remotive_jobs)} internships")
+        sources_tried.append('Remotive')
+    except Exception as e:
+        print(f"✗ Remotive failed: {str(e)}")
+        sources_tried.append('Remotive (failed)')
+
+    print("\n" + "="*60)
+    print(f"SUMMARY: Fetched {len(all_internships)} total internships")
+    print(f"Sources tried: {', '.join(sources_tried)}")
+    print(f"Sources succeeded: {', '.join(sources_succeeded) if sources_succeeded else 'None'}")
+    print("="*60 + "\n")
+
+    return all_internships, sources_succeeded
+
+def get_internships():
+    """
+    Get all active internship opportunities with optional filtering
+    
+    Query Parameters:
+    - company: Filter by company name
+    - location: Filter by location
+    - type: Filter by internship type (full_time, part_time, remote, hybrid, onsite)
+    - min_stipend: Minimum stipend amount
+    - max_stipend: Maximum stipend amount
+    - is_unpaid: Boolean to include unpaid internships
+    - source: Filter by source (e.g., 'Internshala', 'The Muse')
+    - limit: Number of results to return (default: 50)
+    - offset: Offset for pagination (default: 0)
+    - sort_by: Field to sort by (default: posted_date)
+    - order: Sort order (asc/desc, default: desc)
+    """
+    try:
+        # Get query parameters
+        company = request.args.get('company')
+        location = request.args.get('location')
+        internship_type = request.args.get('type')
+        min_stipend = request.args.get('min_stipend', type=float)
+        max_stipend = request.args.get('max_stipend', type=float)
+        is_unpaid = request.args.get('is_unpaid', 'false').lower() == 'true'
+        source = request.args.get('source')
+        limit = min(int(request.args.get('limit', 50)), 100)  # Max 100 per page
+        offset = max(int(request.args.get('offset', 0)), 0)
+        sort_by = request.args.get('sort_by', 'posted_date')
+        order = 'desc' if request.args.get('order', 'desc').lower() == 'desc' else 'asc'
+        
+        # Build query
+        query = supabase.table(INTERNSHIPS_TABLE).select('*', count='exact')
+        
+        # Apply filters
+        if company:
+            query = query.ilike('company', f'%{company}%')
+        if location:
+            query = query.ilike('location', f'%{location}%')
+        if internship_type:
+            query = query.eq('type', internship_type)
+        if min_stipend is not None:
+            query = query.gte('min_stipend', min_stipend)
+        if max_stipend is not None:
+            query = query.lte('max_stipend', max_stipend)
+        if not is_unpaid:  # If not including unpaid, only show paid internships
+            query = query.eq('is_unpaid', False)
+        if source:
+            query = query.ilike('source', f'%{source}%')
+            
+        # Apply sorting
+        if sort_by in ['title', 'company', 'location', 'posted_date', 'min_stipend', 'max_stipend']:
+            query = query.order(sort_by, desc=(order == 'desc'))
+        
+        # Apply pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        # Execute query
+        result = query.execute()
+        
+        # Process and validate each item
+        items = []
+        for item in (result.data or []):
+            # Ensure all required fields have values
+            if 'type' not in item or item['type'] is None:
+                item['type'] = 'full_time'  # Default to full_time if not specified
+            if 'is_unpaid' not in item:
+                item['is_unpaid'] = False
+            if 'is_active' not in item:
+                item['is_active'] = True
+                
+            # Convert to response model
+            try:
+                items.append(InternshipResponse(**item).dict())
+            except Exception as e:
+                print(f"Error processing internship item: {e}")
+                continue  # Skip invalid items
+        
+        # Return the response
+        return jsonify({
+            "total": result.count or 0,
+            "items": items
+        })
+        
+    except Exception as e:
+        print(f"Error fetching internships: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+
+
+# Route registrations moved to the end of the file
+
+def add_cors_headers(response):
+    """Add CORS headers to the response"""
+    origin = request.headers.get('Origin', '*')
+    response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
+def get_internship(internship_id: str):
+    """Get a specific internship opportunity by ID"""
+    try:
+        # Convert string ID to UUID if needed
+        try:
+            internship_id = str(uuid.UUID(internship_id))
+        except (ValueError, AttributeError):
+            return jsonify({"error": "Invalid internship ID format"}), 400
+            
+        # Query the database
+        result = supabase.table(INTERNSHIPS_TABLE).select('*').eq('id', internship_id).execute()
+        
+        if not result.data:
+            return jsonify({"error": INTERNSHIP_NOT_FOUND}), 404
+            
+        return jsonify(InternshipResponse(**result.data[0]).dict())
+        
+    except Exception as e:
+        print(f"Error fetching internship {internship_id}: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+def create_internship():
+    """Create a new internship opportunity (admin only)"""
+    try:
+        # Check if user is admin (you'll need to implement this check)
+        # if not current_user.is_admin:
+        #     return jsonify({"error": "Unauthorized"}), 403
+            
+        # Validate request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        # Parse and validate the request
+        try:
+            internship_data = InternshipCreate(**data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+            
+        # Create the internship
+        internship = InternshipOpportunity(**internship_data.dict())
+        result = supabase.table(INTERNSHIPS_TABLE).insert(internship.to_dict()).execute()
+        
+        if not result.data:
+            return jsonify({"error": "Failed to create internship"}), 500
+            
+        return jsonify(InternshipResponse(**result.data[0]).dict()), 201
+        
+    except Exception as e:
+        print(f"Error creating internship: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+def update_internship(internship_id: str):
+    """Update an existing internship opportunity (admin only)"""
+    try:
+        # Check if user is admin
+        # if not current_user.is_admin:
+        #     return jsonify({"error": "Unauthorized"}), 403
+            
+        # Get the existing internship
+        existing = supabase.table(INTERNSHIPS_TABLE).select('*').eq('id', internship_id).execute()
+        if not existing.data:
+            return jsonify({"error": INTERNSHIP_NOT_FOUND}), 404
+            
+        # Validate request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        # Parse and validate the request
+        try:
+            update_data = InternshipUpdate(**data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+            
+        # Update the internship
+        update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+        if not update_dict:
+            return jsonify({"error": "No valid fields to update"}), 400
+            
+        # Add updated_at timestamp
+        update_dict['updated_at'] = datetime.utcnow().isoformat()
+        
+        # Perform the update
+        result = supabase.table(INTERNSHIPS_TABLE).update(update_dict).eq('id', internship_id).execute()
+        
+        if not result.data:
+            return jsonify({"error": "Failed to update internship"}), 500
+            
+        return jsonify(InternshipResponse(**result.data[0]).dict())
+        
+    except Exception as e:
+        print(f"Error updating internship {internship_id}: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+def delete_internship(internship_id: str):
+    """Delete an internship opportunity (admin only)"""
+    try:
+        # Check if user is admin
+        # if not current_user.is_admin:
+        #     return jsonify({"error": "Unauthorized"}), 403
+            
+        # Check if internship exists
+        existing = supabase.table(INTERNSHIPS_TABLE).select('*').eq('id', internship_id).execute()
+        if not existing.data:
+            return jsonify({"error": INTERNSHIP_NOT_FOUND}), 404
+            
+        # Delete the internship
+        result = supabase.table(INTERNSHIPS_TABLE).delete().eq('id', internship_id).execute()
+        
+        if not result.data:
+            return jsonify({"error": "Failed to delete internship"}), 500
+            
+        return jsonify({"message": "Internship deleted successfully"})
+        
+    except Exception as e:
+        print(f"Error deleting internship {internship_id}: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+def sync_internships():
+    """Sync internships from external sources (admin only)"""
+    try:
+        # Check if user is admin
+        # if not current_user.is_admin:
+        #     return jsonify({"error": "Unauthorized"}), 403
+            
+        # Fetch from all sources
+        all_internships = fetch_all_internships()
+        
+        # Save to database
+        saved_count = 0
+        for internship in all_internships:
+            if _save_internship_opportunity(internship):
+                saved_count += 1
+                
+        return jsonify({
+            "message": f"Successfully synced {saved_count} internships",
+            "total_fetched": len(all_internships),
+            "saved": saved_count
+        })
+        
+    except Exception as e:
+        print(f"Error syncing internships: {str(e)}")
+        return jsonify({"error": INTERNAL_SERVER_ERROR}), 500
+
+def add_cors_headers(response):
+    """Add CORS headers to the response"""
+    origin = request.headers.get('Origin', '*')
+    response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
+@bp.route('/student', methods=['GET', 'OPTIONS'])
+def get_student_internships():
+    """Get student's saved/applied internships"""
+    try:
+        # Handle preflight request
+        if request.method == 'OPTIONS':
+            response = make_response()
+            return add_cors_headers(response)
+            
+        student_id = request.args.get('student_id')
+        if not student_id:
+            error_response = jsonify({
+                "success": False, 
+                "error": "Student ID is required"
+            })
+            response = make_response(error_response, 400)
+            return add_cors_headers(response)
+        
+        print(f"Fetching internships for student: {student_id}")
+            
+        try:
+            # First, check if the student_internships table exists
+            try:
+                # This will raise an exception if the table doesn't exist
+                response = supabase.table('student_internships') \
+                    .select('*') \
+                    .limit(1) \
+                    .execute()
+                
+                # If we get here, the table exists, now fetch the actual data
+                response = supabase.table('student_internships') \
+                    .select('*, internships(*)') \
+                    .eq('student_id', student_id) \
+                    .execute()
+                
+                # Process the response to ensure all required fields are present
+                internships = []
+                for item in (response.data or []):
+                    internship = item.get('internships', {})
+                    if not internship:
+                        continue
+                        
+                    # Ensure all required fields have values
+                    if 'type' not in internship or internship['type'] is None:
+                        internship['type'] = 'full_time'
+                    if 'is_unpaid' not in internship:
+                        internship['is_unpaid'] = False
+                    if 'is_active' not in internship:
+                        internship['is_active'] = True
+                    
+                    # Add the internship to the list
+                    internships.append(internship)
+                
+                print(f"Found {len(internships)} valid internships for student {student_id}")
+                
+                result = {
+                    "success": True,
+                    "data": internships,
+                    "total": len(internships),
+                    "message": "Successfully retrieved internships" if internships else "No internships found"
+                }
+                
+                response = make_response(jsonify(result))
+                return add_cors_headers(response)
+                
+            except Exception as table_error:
+                # If the table doesn't exist or any other error occurs
+                print(f"Error accessing student_internships table: {str(table_error)}")
+                result = {
+                    "success": True,
+                    "data": [],
+                    "total": 0,
+                    "message": "No internships found"
+                }
+                response = make_response(jsonify(result))
+                return add_cors_headers(response)
+            
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            error_response = jsonify({
+                "success": False,
+                "error": "Failed to fetch student internships",
+                "details": str(db_error)
+            })
+            response = make_response(error_response, 500)
+            return add_cors_headers(response)
+        
+    except Exception as e:
+        print(f"Unexpected error in get_student_internships: {str(e)}")
+        error_response = jsonify({
+            "success": False,
+            "error": "An unexpected error occurred",
+            "details": str(e)
+        })
+        response = make_response(error_response, 500)
+        return add_cors_headers(response)
+
+# Legacy route - keeping for backward compatibility but simplified
+@bp.route('/student/<student_id>', methods=['GET'])
+def handle_student_internships_legacy(student_id=None):
+    """Legacy route - redirects to main student endpoint"""
+    try:
+        # For now, return empty array since we're not storing applications
+        return jsonify({
+            'success': True,
+            'data': [],
+            'message': 'Application tracking not yet implemented'
+        })
+    except Exception as e:
+        print(f"Error in handle_student_internships_legacy: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Remove all the old POST/DELETE handlers since we're not storing data yet
+# These can be added back later when you want to implement save/apply functionality
+
+# Configure file upload settings
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx'}
+
+# Ensure upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@bp.route('/resume/upload', methods=['POST'])
+def upload_resume():
+    """Handle resume file upload"""
+    try:
+        # Check if the post request has the file part
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file part in the request'
+            }), 400
+            
+        file = request.files['file']
+        student_id = request.form.get('student_id')
+        
+        if not student_id:
+            return jsonify({
+                'success': False,
+                'error': 'Student ID is required'
+            }), 400
+            
+        # If user does not select file, browser also
+        # submit an empty part without filename
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No selected file'
+            }), 400
+            
+        if file and allowed_file(file.filename):
+            # Create a secure filename
+            filename = f"resume_{student_id}_{int(time.time())}.{file.filename.rsplit('.', 1)[1].lower()}"
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            
+            # Save the file
+            file.save(filepath)
+            
+            # Store file info in database
+            resume_data = {
+                'student_id': student_id,
+                'filename': filename,
+                'original_filename': file.filename,
+                'filepath': filepath,
+                'uploaded_at': datetime.utcnow().isoformat(),
+                'file_size': os.path.getsize(filepath)
+            }
+            
+            # Check if resume already exists for student
+            existing_resume = supabase.table('student_resumes') \
+                .select('*') \
+                .eq('student_id', student_id) \
+                .execute()
+                
+            if existing_resume.data:
+                # Update existing resume
+                result = supabase.table('student_resumes') \
+                    .update(resume_data) \
+                    .eq('student_id', student_id) \
+                    .execute()
+            else:
+                # Create new resume record
+                result = supabase.table('student_resumes') \
+                    .insert(resume_data) \
+                    .execute()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Resume uploaded successfully',
+                'filename': file.filename,
+                'uploaded_at': resume_data['uploaded_at']
+            })
+            
+        return jsonify({
+            'success': False,
+            'error': 'File type not allowed. Allowed types are: ' + ', '.join(ALLOWED_EXTENSIONS)
+        }), 400
+        
+    except Exception as e:
+        print(f"Error uploading resume: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to upload resume',
+            'details': str(e)
+        }), 500
+
+# Route registrations - all routes are registered here at the end of the file
+@bp.route('', methods=['GET'])
+@bp.route('/', methods=['GET'])
+def get_internships_route():
+    return get_internships()
+
+@bp.route('/<string:internship_id>', methods=['GET'])
+def get_internship_route(internship_id):
+    return get_internship(internship_id)
+
+@bp.route('', methods=['POST'])
+@bp.route('/', methods=['POST'])
+def create_internship_route():
+    return create_internship()
+
+@bp.route('/<string:internship_id>', methods=['PUT'])
+def update_internship_route(internship_id):
+    return update_internship(internship_id)
+
+@bp.route('/<string:internship_id>', methods=['DELETE'])
+def delete_internship_route(internship_id):
+    return delete_internship(internship_id)
+
+@bp.route('/sync', methods=['POST'])
+def sync_internships_route():
+    return sync_internships()
+
+@bp.route('/student', methods=['GET', 'OPTIONS'])
+def get_student_internships_route():
+    return get_student_internships()
+
+@bp.route('/api/resume/<student_id>', methods=['GET', 'OPTIONS'])
+def get_resume(student_id):
+    """Get resume information for a student"""
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        response = make_response()
+        return add_cors_headers(response)
+        
+    try:
+        print(f"[DEBUG] Received request for student_id: {student_id}")
+        if not student_id:
+            return jsonify({
+                'success': False,
+                'error': 'Student ID is required',
+                'has_resume': False
+            }), 400
+            
+        # Get resume info from database
+        try:
+            result = supabase.table('student_resumes') \
+                .select('*') \
+                .eq('student_id', student_id) \
+                .execute()
+                
+            if not result.data:
+                print(f"[DEBUG] No resume found in 'resumes' table for {student_id}")
+                # Try the student_resumes table as fallback
+                try:
+                    result = supabase.table('student_resumes') \
+                        .select('*') \
+                        .eq('student_id', student_id) \
+                        .execute()
+                    
+                    if not result.data:
+                        print(f"[DEBUG] No resume found in 'student_resumes' table for {student_id}")
+                        return jsonify({
+                            'success': True,
+                            'has_resume': False,
+                            'message': 'No resume found for this student',
+                            'data': None
+                        })
+                    
+                    # If we found a resume in student_resumes, use that
+                    resume = result.data[0]
+                    print(f"[DEBUG] Found resume in student_resumes: {resume}")
+                    response = jsonify({
+                        'success': True,
+                        'has_resume': True,
+                        'data': {
+                            'id': resume.get('id'),
+                            'filename': resume.get('filename'),
+                            'original_filename': resume.get('original_filename'),
+                            'filepath': resume.get('filepath'),
+                            'uploaded_at': resume.get('uploaded_at') or datetime.utcnow().isoformat(),
+                            'file_size': resume.get('file_size')
+                        },
+                        'message': 'Resume found in student_resumes table'
+                    })
+                    return add_cors_headers(response)
+                except Exception as fallback_error:
+                    print(f"[ERROR] Error checking student_resumes table: {str(fallback_error)}")
+                    response = jsonify({
+                        'success': True,
+                        'has_resume': False,
+                        'message': 'No resume found',
+                        'data': None
+                    })
+                    return add_cors_headers(response)
+                
+            resume = result.data[0]
+            print(f"[DEBUG] Found resume record: {resume}")
+            
+            # Check if file exists
+            filepath = resume.get('filepath', '')
+            file_exists = filepath and os.path.exists(filepath)
+            
+            if not file_exists:
+                # Try to get the uploads directory
+                uploads_dir = os.path.dirname(filepath) if filepath else 'Not available'
+                try:
+                    uploads_list = os.listdir(uploads_dir) if uploads_dir and os.path.exists(uploads_dir) else 'Directory not found'
+                except Exception as dir_error:
+                    uploads_list = f'Error listing directory: {str(dir_error)}'
+                
+                response = jsonify({
+                    'success': True,
+                    'has_resume': False,
+                    'message': 'No resume found for this student',
+                    'data': None,
+                    'debug': {
+                        'filepath': filepath,
+                        'file_exists': file_exists,
+                        'current_working_dir': os.getcwd(),
+                        'uploads_dir': uploads_dir,
+                        'uploads_dir_exists': os.path.exists(uploads_dir) if uploads_dir else False,
+                        'list_uploads_dir': uploads_list
+                    }
+                })
+                return add_cors_headers(response)
+                
+            # If we get here, the file exists
+            response = jsonify({
+                'success': True,
+                'has_resume': True,
+                'data': {
+                    'id': resume.get('id'),
+                    'filename': resume.get('filename'),
+                    'original_filename': resume.get('original_filename'),
+                    'filepath': filepath,
+                    'uploaded_at': resume.get('uploaded_at') or datetime.utcnow().isoformat(),
+                    'file_size': resume.get('file_size')
+                },
+                'message': 'Resume found'
+            })
+            return add_cors_headers(response)
+            
+        except Exception as query_error:
+            print(f"[ERROR] Database query failed: {str(query_error)}")
+            response = jsonify({
+                'success': False,
+                'has_resume': False,
+                'error': 'Failed to check resume status',
+                'message': str(query_error),
+                'data': None
+            })
+            response.status_code = 500
+            return add_cors_headers(response)
+            
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"[ERROR] Error in get_resume: {str(e)}\n{error_details}")
+        response = jsonify({
+            'success': False,
+            'has_resume': False,
+            'error': 'Failed to fetch resume information',
+            'message': str(e),
+            'data': None
+        })
+        response.status_code = 500
+        return add_cors_headers(response)

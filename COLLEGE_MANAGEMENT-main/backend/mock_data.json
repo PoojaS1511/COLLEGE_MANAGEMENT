@@ -1,0 +1,306 @@
+{
+  "departments": [
+    {
+      "id": 1,
+      "name": "Computer Science Engineering",
+      "code": "CSE",
+      "head": "Dr. Rajesh Kumar"
+    },
+    {
+      "id": 2,
+      "name": "Electronics and Communication",
+      "code": "ECE",
+      "head": "Dr. Priya Sharma"
+    },
+    {
+      "id": 3,
+      "name": "Mechanical Engineering",
+      "code": "MECH",
+      "head": "Dr. Suresh Reddy"
+    },
+    {
+      "id": 4,
+      "name": "Civil Engineering",
+      "code": "CIVIL",
+      "head": "Dr. Lakshmi Devi"
+    },
+    {
+      "id": 5,
+      "name": "Information Technology",
+      "code": "IT",
+      "head": "Dr. Arun Kumar"
+    }
+  ],
+  "courses": [
+    {
+      "id": 1,
+      "name": "Computer Science Engineering",
+      "code": "CSE101",
+      "department": "Engineering",
+      "duration": "4 Years",
+      "department_id": 1
+    },
+    {
+      "id": 2,
+      "name": "Electronics and Communication Engineering",
+      "code": "ECE101",
+      "department": "Engineering",
+      "duration": "4 Years",
+      "department_id": 2
+    },
+    {
+      "id": 3,
+      "name": "Mechanical Engineering",
+      "code": "MECH101",
+      "department": "Engineering",
+      "duration": "4 Years",
+      "department_id": 3
+    },
+    {
+      "id": 4,
+      "name": "Civil Engineering",
+      "code": "CIVIL101",
+      "department": "Engineering",
+      "duration": "4 Years",
+      "department_id": 4
+    },
+    {
+      "id": 5,
+      "name": "Information Technology",
+      "code": "IT101",
+      "department": "Engineering",
+      "duration": "4 Years",
+      "department_id": 5
+    }
+  ],
+  "subjects": [
+    {
+      "id": 1,
+      "name": "Data Structures",
+      "code": "DS101",
+      "course": "CSE",
+      "semester": 3,
+      "credits": 4,
+      "course_id": 1
+    },
+    {
+      "id": 2,
+      "name": "Database Management Systems",
+      "code": "DBMS201",
+      "course": "CSE",
+      "semester": 4,
+      "credits": 4,
+      "course_id": 1
+    },
+    {
+      "id": 3,
+      "name": "Computer Networks",
+      "code": "CN301",
+      "course": "CSE",
+      "semester": 5,
+      "credits": 3,
+      "course_id": 1
+    },
+    {
+      "id": 4,
+      "name": "Digital Signal Processing",
+      "code": "DSP201",
+      "course": "ECE",
+      "semester": 4,
+      "credits": 4,
+      "course_id": 2
+    },
+    {
+      "id": 5,
+      "name": "Microprocessors",
+      "code": "MP301",
+      "course": "ECE",
+      "semester": 5,
+      "credits": 3,
+      "course_id": 2
+    }
+  ],
+  "faculty": [
+    {
+      "id": 1,
+      "name": "Dr. Priya Sharma",
+      "email": "priya.sharma@example.com",
+      "department": "CSE",
+      "specialization": "AI & ML",
+      "phone": "9876543210",
+      "employee_id": "FAC001",
+      "department_id": 1
+    },
+    {
+      "id": 2,
+      "name": "Dr. Rajesh Kumar",
+      "email": "rajesh.kumar@example.com",
+      "department": "ECE",
+      "specialization": "VLSI Design",
+      "phone": "9876543211",
+      "employee_id": "FAC002",
+      "department_id": 2
+    },
+    {
+      "id": 3,
+      "name": "Prof. Suresh Reddy",
+      "email": "suresh.reddy@example.com",
+      "department": "MECH",
+      "specialization": "Thermal Engineering",
+      "phone": "9876543212",
+      "employee_id": "FAC003",
+      "department_id": 3
+    }
+  ],
+  "students": [
+    {
+      "id": 1,
+      "register_number": "2023CSE001",
+      "full_name": "Rahul Verma",
+      "email": "rahul.verma@student.edu",
+      "phone": "8765432109",
+      "course_id": 1,
+      "current_semester": 3,
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "register_number": "2023CSE002",
+      "full_name": "Priya Singh",
+      "email": "priya.singh@student.edu",
+      "phone": "8765432108",
+      "course_id": 1,
+      "current_semester": 3,
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "register_number": "2023ECE001",
+      "full_name": "Amit Kumar",
+      "email": "amit.kumar@student.edu",
+      "phone": "8765432107",
+      "course_id": 2,
+      "current_semester": 3,
+      "status": "active"
+    }
+  ],
+  "exams": [
+    {
+      "id": 1,
+      "course": "CSE",
+      "subject": "Data Structures",
+      "date": "2025-09-10",
+      "time": "10:00 AM",
+      "venue": "Hall A",
+      "name": "Mid-term Exam",
+      "exam_type": "IA1",
+      "subject_id": 1
+    },
+    {
+      "id": 2,
+      "course": "CSE",
+      "subject": "DBMS",
+      "date": "2025-09-12",
+      "time": "2:00 PM",
+      "venue": "Hall B",
+      "name": "Mid-term Exam",
+      "exam_type": "IA1",
+      "subject_id": 2
+    }
+  ],
+  "marks": [
+    {
+      "student_id": 1,
+      "subject": "DS101",
+      "exam_id": 1,
+      "marks": 85,
+      "grade": "A",
+      "marks_obtained": 85,
+      "max_marks": 100,
+      "subject_id": 1
+    },
+    {
+      "student_id": 2,
+      "subject": "DS101",
+      "exam_id": 1,
+      "marks": 78,
+      "grade": "B+",
+      "marks_obtained": 78,
+      "max_marks": 100,
+      "subject_id": 1
+    }
+  ],
+  "attendance": [
+    {
+      "date": "2025-08-10",
+      "course": "CSE",
+      "subject": "DS101",
+      "faculty": "Dr. Priya Sharma",
+      "student_id": 1,
+      "subject_id": 1,
+      "faculty_id": 1,
+      "status": "present"
+    },
+    {
+      "date": "2025-08-10",
+      "course": "CSE",
+      "subject": "DS101",
+      "faculty": "Dr. Priya Sharma",
+      "student_id": 2,
+      "subject_id": 1,
+      "faculty_id": 1,
+      "status": "present"
+    }
+  ],
+  "fee_structure": [
+    {
+      "course": "CSE",
+      "year": "2025",
+      "amount": 120000,
+      "due_date": "2025-09-30",
+      "id": 1,
+      "course_id": 1,
+      "quota_type": "merit",
+      "semester": 1,
+      "total_fee": 75000
+    }
+  ],
+  "payments": [
+    {
+      "student_id": 1,
+      "total_fees": 120000,
+      "paid_amount": 80000,
+      "balance": 40000,
+      "id": 1,
+      "amount_paid": 80000,
+      "payment_method": "online",
+      "status": "completed"
+    }
+  ],
+  "notifications": [
+    {
+      "id": 1,
+      "recipient": "All Students",
+      "title": "Exam Notice",
+      "message": "Mid-sem exams start from 10 Sept 2025",
+      "notification_type": "academic",
+      "target_audience": "students",
+      "is_active": true
+    }
+  ],
+  "admissions": [
+    {
+      "application_id": "ADM2025-01",
+      "name": "Rahul Verma",
+      "course_applied": "CSE",
+      "status": "Pending",
+      "submitted_date": "2025-08-10",
+      "id": 1,
+      "application_number": "ADM2025-01",
+      "full_name": "Rahul Verma",
+      "email": "rahul@example.com",
+      "phone": "9876543210",
+      "course_id": 1
+    }
+  ]
+}

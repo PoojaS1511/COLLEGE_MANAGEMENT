@@ -1,0 +1,787 @@
+from flask import Blueprint, request, jsonify, current_app, render_template, make_response, send_file, url_for
+import os
+import logging
+import io
+from supabase_client import get_supabase
+from datetime import datetime, timedelta
+from fpdf import FPDF
+from xhtml2pdf import pisa
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='student_dashboard.log',
+    filemode='a'
+)
+logger = logging.getLogger(__name__)
+
+student_dashboard_bp = Blueprint('student_dashboard', __name__)
+
+# Initialize Supabase client
+logger.info("Initializing Supabase client...")
+supabase = get_supabase()
+logger.info("Successfully initialized Supabase client")
+
+# Log Supabase configuration (without sensitive data)
+logger.info(f"Supabase URL: {os.environ.get('SUPABASE_URL', 'Not set')}")
+logger.info(f"Supabase Key: {'Set' if os.environ.get('SUPABASE_KEY') else 'Not set'}")
+logger.info(f"Supabase Service Key: {'Set' if os.environ.get('SUPABASE_SERVICE_KEY') else 'Not set'}")
+
+# Test the connection
+try:
+    test_response = supabase.table('students').select('count', count='exact').execute()
+    logger.info(f"Successfully connected to Supabase. Found {test_response.count if hasattr(test_response, 'count') else 0} students")
+except Exception as e:
+    logger.error(f"Error testing Supabase connection: {str(e)}")
+    raise
+
+@student_dashboard_bp.route('/<id_param>', methods=['GET'])
+def get_student_dashboard(id_param):
+    """
+    Get personalized dashboard data for a student
+    Accepts either user_id (Supabase Auth ID) or student_id (UUID)
+    Returns: profile, subjects, exams, timetable, fees, notifications, events, internships, transport/hostel
+    """
+    print(f"\n\n{'='*80}")
+    print(f"STUDENT DASHBOARD REQUEST RECEIVED")
+    print(f"ID Parameter: {id_param}")
+    print(f"{'='*80}\n")
+
+    try:
+        logger.info(f"Fetching dashboard for student with ID/UUID: {id_param}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
+        logger.debug(f"Request args: {request.args}")
+        
+        # Ensure we have a valid ID
+        if not id_param or not isinstance(id_param, str) or len(id_param.strip()) == 0:
+            error_msg = "Invalid student ID provided"
+            logger.error(error_msg)
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'details': 'The provided student ID is empty or invalid.'
+            }), 400
+        
+        # Initialize student and student_id variables
+        student = None
+        student_id = None
+        
+        # First try to find student by user_id (Supabase Auth ID)
+        try:
+            logger.info(f"Attempting to find student with user_id: {id_param}")
+            
+            # Try to find by user_id first
+            try:
+                print(f"[DEBUG] Querying students table with user_id: {id_param}")
+                student_response = supabase.table('students').select('*').eq('user_id', id_param).execute()
+                print(f"[DEBUG] Query successful. Response data: {student_response.data if hasattr(student_response, 'data') else 'No data'}")
+                logger.debug(f"Search by user_id response: {student_response}")
+
+                # If not found, try by id (which is now student_id)
+                if not student_response.data:
+                    logger.info(f"Student not found by user_id, trying with id (student_id)")
+                    student_response = supabase.table('students').select('*').eq('id', id_param).execute()
+                    logger.debug(f"Search by id (student_id) response: {student_response}")
+
+                if not student_response.data:
+                    # Try to list all students to help with debugging
+                    try:
+                        all_students = supabase.table('students').select('id, user_id, name, email').limit(5).execute()
+                        logger.info(f"First 5 students in database: {all_students.data}")
+
+                        error_msg = (
+                            "Student not found. Please ensure you're using the correct ID. "
+                            "The system accepts either the Supabase Auth user_id or the student_id (UUID)."
+                        )
+
+                        logger.error(f"{error_msg}. Searched ID: {id_param}")
+                        return jsonify({
+                            'success': False,
+                            'error': 'Student not found',
+                            'details': error_msg,
+                            'debug': {
+                                'searched_id': id_param,
+                                'sample_students': all_students.data if hasattr(all_students, 'data') else [],
+                                'hint': 'Try using the Supabase Auth user_id instead of student_id or vice versa',
+                                'available_columns': ['id', 'user_id', 'email', 'name']
+                            }
+                        }), 404
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to list students: {str(e)}")
+                        raise
+            
+            except Exception as e:
+                logger.error(f"Error querying students table: {str(e)}")
+                raise
+            
+            student = student_response.data[0] if student_response.data else None
+            if not student:
+                error_msg = "Student record not found in the database"
+                logger.error(error_msg)
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'details': 'The student record could not be found in the database.'
+                }), 404
+
+            # Extract student_id from the student record
+            student_id = student.get('id') or student.get('student_id')
+            if not student_id:
+                # For backward compatibility, try to use the record ID if available
+                student_id = student.get('id')
+                if not student_id:
+                    error_msg = "Student record is missing id/student_id field"
+                    logger.error(f"{error_msg}. Student data: {student}")
+                    return jsonify({
+                        'success': False,
+                        'error': error_msg,
+                        'details': 'The student record is missing a valid identifier (id or student_id).',
+                        'student_data_available_fields': list(student.keys()) if student else []
+                    }), 400
+            
+            user_id = student.get('user_id')
+            student_type = student.get('type', 'day_scholar')  # Default to day_scholar if not specified
+
+            logger.info(f"Found student - Student ID: {student_id}, User ID: {user_id}, Type: {student_type}")
+
+            # Verify we have a valid student ID
+            if not student_id:
+                error_msg = f"Student record has no valid ID. Student data: {student}"
+                logger.error(error_msg)
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid student record: missing id/student_id',
+                    'details': 'The student record is missing a valid identifier (id or student_id).',
+                    'student_data_available_fields': list(student.keys()) if student else []
+                }), 400
+
+            # Log successful student lookup
+            logger.info(f"Successfully retrieved student with ID: {student_id}")
+        except Exception as e:
+            error_msg = f"Error fetching student data: {str(e)}"
+            logger.error(error_msg)
+            return jsonify({
+                'success': False,
+                'error': 'Failed to fetch student data',
+                'details': str(e)
+            }), 500
+            
+        # Get course details if course_id exists
+        course = None
+        try:
+            course_id = student.get('course_id')
+            if course_id:
+                print(f"[DEBUG] Fetching course details for course_id: {course_id}")
+                try:
+                    course_response = supabase.table('courses').select('*').eq('id', course_id).execute()
+                    if course_response and hasattr(course_response, 'data') and course_response.data:
+                        course = course_response.data[0]
+                        print(f"[DEBUG] Found course: {course.get('name', 'Unnamed Course')}")
+                    else:
+                        print(f"[WARNING] No course found for course_id: {course_id}")
+                except Exception as course_error:
+                    import traceback
+                    print(f"[ERROR] Error in course query: {str(course_error)}")
+                    print(f"[ERROR] Course query traceback: {traceback.format_exc()}")
+                    course = None
+            else:
+                print("[WARNING] No course_id found in student record")
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] Error fetching course details: {str(e)}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            course = None
+        
+        # Get student details with defaults
+        year = student.get('year', 1)  # Default to first year if not specified
+        student_type = student.get('type', 'regular')  # Default to regular if not specified
+        
+        print(f"[DEBUG] Student details - Year: {year}, Type: {student_type}")
+        
+        # Get subjects for the student's course if course_id exists
+        subjects = []
+        try:
+            if course_id:
+                print(f"[DEBUG] Fetching subjects for course_id: {course_id}")
+                subjects_response = supabase.table('subjects').select('*').eq('course_id', course_id).execute()
+                if hasattr(subjects_response, 'data'):
+                    subjects = subjects_response.data
+                    print(f"[DEBUG] Found {len(subjects)} subjects")
+        except Exception as e:
+            print(f"[ERROR] Error fetching subjects: {str(e)}")
+            subjects = []
+        
+        # Get exams for the student's course if course_id exists
+        exams = []
+        try:
+            if course_id:
+                print(f"[DEBUG] Fetching exams for course_id: {course_id}")
+                exams_response = supabase.table('exams').select('*').eq('course_id', course_id).execute()
+                if hasattr(exams_response, 'data'):
+                    exams = exams_response.data
+                    print(f"[DEBUG] Found {len(exams)} exams")
+        except Exception as e:
+            print(f"[ERROR] Error fetching exams: {str(e)}")
+            exams = []
+        
+        # Get marks for the student with error handling
+        marks = []
+        try:
+            print(f"[DEBUG] Fetching marks for student_id: {student_id}")
+            
+            # First, get the marks with basic exam and subject info
+            marks_response = supabase.table('marks').select('''
+                *,
+                exam:exam_id (id, name, type, date),
+                subject:subject_id (id, name, code)
+            ''').eq('student_id', student_id).execute()
+            
+            if hasattr(marks_response, 'data') and marks_response.data:
+                marks = marks_response.data
+                print(f"[DEBUG] Found {len(marks)} marks records")
+                
+                # Process the nested data to match expected format
+                for mark in marks:
+                    # Handle exam data
+                    if mark.get('exam'):
+                        exam = mark.pop('exam')
+                        mark['exam_name'] = exam.get('name', 'N/A')
+                        mark['exam_type'] = exam.get('type', 'N/A')
+                        mark['exam_date'] = exam.get('date')
+                    
+                    # Handle subject data
+                    if mark.get('subject'):
+                        subject = mark.pop('subject')
+                        mark['subject_name'] = subject.get('name', 'N/A')
+                        mark['subject_code'] = subject.get('code', 'N/A')
+                        
+            else:
+                print("[DEBUG] No marks data found")
+                marks = []
+                
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"[ERROR] Error fetching marks: {str(e)}\n{error_details}")
+            marks = []
+        
+        # Get timetable for the student's course and year if course_id exists
+        timetable = []
+        try:
+            if course_id:
+                print(f"[DEBUG] Fetching timetable for course_id: {course_id}, year: {year}")
+                timetable_response = supabase.table('timetable').select('''
+                    *,
+                    subject:subject_id (id, name, code)
+                ''').eq('course_id', course_id).eq('year', year).execute()
+                
+                if hasattr(timetable_response, 'data'):
+                    timetable = timetable_response.data
+                    print(f"[DEBUG] Found {len(timetable)} timetable entries")
+                else:
+                    print("[DEBUG] No timetable data found")
+        except Exception as e:
+            print(f"[ERROR] Error fetching timetable: {str(e)}")
+            timetable = []
+        
+        # Get fees for the student with error handling
+        fees_summary = {
+            'total_amount': 0,
+            'paid_amount': 0,
+            'pending_amount': 0,
+            'details': []
+        }
+
+        try:
+            print(f"[DEBUG] Fetching fees for student_id: {student_id}")
+            fees_response = supabase.table('fees').select('*').eq('student_id', student_id).execute()
+            
+            if hasattr(fees_response, 'data'):
+                fees = fees_response.data
+                print(f"[DEBUG] Found {len(fees)} fee records")
+                
+                # Calculate total fees summary with proper type conversion and error handling
+                try:
+                    total_amount = sum(float(fee.get('total_amount', 0)) for fee in fees if fee and 'total_amount' in fee)
+                    paid_amount = sum(float(fee.get('paid_amount', 0)) for fee in fees if fee and 'paid_amount' in fee)
+                    pending_amount = max(0, total_amount - paid_amount)
+                    
+                    fees_summary = {
+                        'total_amount': total_amount,
+                        'paid_amount': paid_amount,
+                        'pending_amount': pending_amount,
+                        'details': fees
+                    }
+                    print(f"[DEBUG] Fees summary - Total: {total_amount}, Paid: {paid_amount}, Pending: {pending_amount}")
+                except (ValueError, TypeError) as e:
+                    print(f"[ERROR] Error calculating fee totals: {str(e)}")
+                    # Keep default values if calculation fails
+            else:
+                print("[DEBUG] No fee records found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching fees: {str(e)}")
+            # Continue with default fees summary if there's an error
+        
+        # Get notifications (global + course-specific + individual)
+        notifications = []
+        try:
+            print(f"[DEBUG] Fetching notifications for student_id: {student_id}, course_id: {course_id}")
+
+            if course_id:
+                notifications_response = supabase.table('notifications').select('*').or_(
+                    f'or(notification_type.eq.global,and(notification_type.eq.course_specific,course_id.eq.{course_id})),and(notification_type.eq.individual,student_id.eq.{student_id})'
+                ).order('created_at', desc=True).limit(20).execute()
+            else:
+                notifications_response = supabase.table('notifications').select('*').or_(
+                    f'notification_type.eq.global,notification_type.eq.individual.and(student_id.eq.{student_id})'
+                ).order('created_at', desc=True).limit(20).execute()
+                
+            if hasattr(notifications_response, 'data'):
+                notifications = notifications_response.data
+                print(f"[DEBUG] Found {len(notifications)} notifications")
+            else:
+                print("[DEBUG] No notifications found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching notifications: {str(e)}")
+            notifications = []
+        
+        # Get events (all + course-specific)
+        events = []
+        try:
+            today = datetime.now().date().isoformat()
+            print(f"[DEBUG] Fetching events after {today} for student_id: {student_id}, course_id: {course_id}")
+            
+            if course_id:
+                events_response = supabase.table('events').select('*').or_(
+                    f'target_audience.eq.all,target_audience.eq.students,and(target_audience.eq.specific_course,course_id.eq.{course_id})'
+                ).gte('event_date', today).order('event_date').execute()
+            else:
+                events_response = supabase.table('events').select('*').or_(
+                    'target_audience.eq.all,target_audience.eq.students'
+                ).gte('event_date', today).order('event_date').execute()
+                
+            if hasattr(events_response, 'data'):
+                events = events_response.data
+                print(f"[DEBUG] Found {len(events)} upcoming events")
+            else:
+                print("[DEBUG] No upcoming events found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching events: {str(e)}")
+            events = []
+        
+        # Get internships for the student with error handling
+        internships = []
+        try:
+            print(f"[DEBUG] Fetching internships for student_id: {student_id}")
+            internships_response = supabase.table('internships').select('*').eq('student_id', student_id).execute()
+            
+            if hasattr(internships_response, 'data'):
+                internships = internships_response.data
+                print(f"[DEBUG] Found {len(internships)} internship records")
+            else:
+                print("[DEBUG] No internship records found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching internships: {str(e)}")
+            internships = []
+        
+        # Get resume for the student with error handling
+        resume = None
+        try:
+            print(f"[DEBUG] Fetching resume for student_id: {student_id}")
+            resume_response = supabase.table('resumes').select('*').eq('student_id', student_id).execute()
+            
+            if hasattr(resume_response, 'data') and resume_response.data and len(resume_response.data) > 0:
+                resume = resume_response.data[0]
+                print("[DEBUG] Found resume record")
+            else:
+                print("[DEBUG] No resume record found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching resume: {str(e)}")
+            resume = None
+        
+        # Conditional data based on student type
+        transport_data = None
+        hostel_data = None
+        
+        # Handle transport or hostel data based on student type
+        transport_data = None
+        hostel_data = None
+        
+        try:
+            if student_type == 'day_schorer':
+                print(f"[DEBUG] Fetching transport details for day scholar student_id: {student_id}")
+                transport_mapping_response = supabase.table('student_transport').select('''
+                    *,
+                    transport (
+                        route_name,
+                        route_number,
+                        driver_name,
+                        driver_phone,
+                        bus_number,
+                        pickup_points,
+                        timings,
+                        fee_per_semester
+                    )
+                ''').eq('student_id', student_id).execute()
+
+                if hasattr(transport_mapping_response, 'data') and transport_mapping_response.data:
+                    transport_data = transport_mapping_response.data[0]
+                    print("[DEBUG] Found transport details")
+                else:
+                    print("[DEBUG] No transport details found")
+
+            elif student_type == 'hosteller':
+                print(f"[DEBUG] Fetching hostel details for hosteller student_id: {student_id}")
+                hostel_mapping_response = supabase.table('student_hostel').select('''
+                    *,
+                    hostels (
+                        hostel_name,
+                        hostel_type,
+                        warden_name,
+                        warden_phone,
+                        address
+                    ),
+                    hostel_rooms (
+                        room_number,
+                        floor,
+                        capacity,
+                        room_type,
+                        fee_per_semester
+                    )
+                ''').eq('student_id', student_id).execute()
+                
+                if hasattr(hostel_mapping_response, 'data') and hostel_mapping_response.data:
+                    hostel_data = hostel_mapping_response.data[0]
+                    print("[DEBUG] Found hostel details")
+                else:
+                    print("[DEBUG] No hostel details found")
+        except Exception as e:
+            print(f"[ERROR] Error fetching transport/hostel data: {str(e)}")
+            transport_data = None
+            hostel_data = None
+        
+        # Get attendance summary with error handling
+        attendance_summary = {
+            'total_classes': 0,
+            'present_count': 0,
+            'attendance_percentage': 0
+        }
+        
+        try:
+            print(f"[DEBUG] Fetching attendance for student_id: {student_id}")
+            attendance_response = supabase.table('attendance').select('*').eq('student_id', student_id).execute()
+            
+            if hasattr(attendance_response, 'data'):
+                attendance_records = attendance_response.data
+                print(f"[DEBUG] Found {len(attendance_records)} attendance records")
+                
+                try:
+                    total_classes = len(attendance_records)
+                    present_count = len([r for r in attendance_records if r and r.get('status') == 'present'])
+                    attendance_percentage = (present_count / total_classes * 100) if total_classes > 0 else 0
+                    
+                    attendance_summary = {
+                        'total_classes': total_classes,
+                        'present_count': present_count,
+                        'attendance_percentage': round(attendance_percentage, 2)
+                    }
+                    print(f"[DEBUG] Attendance - Present: {present_count}/{total_classes} ({attendance_percentage:.2f}%)")
+                except (ValueError, ZeroDivisionError) as e:
+                    print(f"[ERROR] Error calculating attendance: {str(e)}")
+                    # Keep default values if calculation fails
+            else:
+                print("[DEBUG] No attendance records found")
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching attendance: {str(e)}")
+            # Continue with default attendance summary if there's an error
+
+        # Prepare the final response
+        try:
+            print("[DEBUG] Preparing final response...")
+            
+            # Create a safe student profile with only necessary fields
+            safe_student = {
+                'id': student.get('id'),
+                'student_id': student.get('id'),
+                'name': student.get('name'),
+                'full_name': student.get('full_name'),
+                'email': student.get('email'),
+                'roll_number': student.get('roll_number'),
+                'roll_no': student.get('roll_no'),
+                'register_number': student.get('register_number'),
+                'course_id': student.get('course_id'),
+                'year': student.get('year'),
+                'section': student.get('section'),
+                'batch': student.get('batch'),
+                'type': student_type,
+                'status': student.get('status')
+            }
+            
+            response_data = {
+                'success': True,
+                'data': {
+                    'profile': safe_student,
+                    'course': course,
+                    'subjects': subjects,
+                    'exams': exams,
+                    'marks': marks,
+                    'timetable': timetable,
+                    'fees': fees_summary,
+                    'notifications': notifications,
+                    'events': events,
+                    'internships': internships,
+                    'attendance': attendance_summary,
+                    'transport': transport_data,
+                    'hostel': hostel_data,
+                    'last_updated': datetime.now().isoformat()
+                }
+            }
+            
+            print("[DEBUG] Successfully prepared response")
+            return jsonify(response_data)
+            
+        except Exception as e:
+            error_msg = f"Error preparing response: {str(e)}"
+            print(f"[ERROR] {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to prepare dashboard data',
+                'details': str(e)
+            }), 500
+
+    except Exception as e:
+        import traceback
+        error_details = {
+            'error': str(e),
+            'type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
+        print(f"[ERROR] Unhandled exception in get_student_dashboard: {error_details}")
+        logger.error(f"Unhandled exception: {error_details}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'type': type(e).__name__,
+            'traceback': traceback.format_exc().split('\n')
+        }), 500
+
+@student_dashboard_bp.route('/<user_id>/profile', methods=['GET'])
+def get_student_profile(user_id):
+    # Get student profile with course details
+    try:
+        student_response = supabase.table('students').select('*, courses(*, departments(*))').eq('user_id', user_id).execute()
+        if not student_response.data:
+            return None
+        
+        student = student_response.data[0]
+        
+        # Flatten the course and department data
+        if 'courses' in student and student['courses']:
+            student['course_name'] = student['courses'].get('name', 'N/A')
+            student['course_code'] = student['courses'].get('code', 'N/A')
+            if 'departments' in student['courses'] and student['courses']['departments']:
+                student['department_name'] = student['courses']['departments'].get('name', 'N/A')
+                student['department_code'] = student['courses']['departments'].get('code', 'N/A')
+        
+        return student_response.data[0]['course_id']
+    except Exception as e:
+        logger.error(f"Error fetching student course: {str(e)}")
+        return None
+
+def get_student_exams(user_id, exam_id=None):
+    # Get exams for student's course, or specific exam if exam_id is provided
+    try:
+        # First get student's course and semester
+        student = get_student_profile(user_id)
+        if not student or 'course_id' not in student or 'semester' not in student:
+            return []
+            
+        # Get current academic year (assuming format: YYYY-YYYY)
+        current_year = datetime.now().year
+        academic_year = f"{current_year}-{current_year + 1}"
+        
+        # Build the query
+        query = supabase.table('exams')\
+            .select('*, subjects(*)')\
+            .eq('course_id', student['course_id'])\
+            .eq('semester', student['semester'])\
+            .eq('academic_year', academic_year)
+            
+        # If specific exam_id is provided, filter by it
+        if exam_id:
+            query = query.eq('id', exam_id)
+            
+        exams_response = query.execute()
+        
+        # Process the response to include venue information
+        exams = exams_response.data if hasattr(exams_response, 'data') and exams_response.data else []
+        for exam in exams:
+            # Add default venue if not present
+            if 'venue' not in exam:
+                exam['venue'] = "Cube Arts & Engineering College, 123 Education Street, Chennai, Tamil Nadu 600001"
+            # Add subject name and code to root level for easier access in templates
+            if 'subjects' in exam and exam['subjects']:
+                exam['subject_name'] = exam['subjects'].get('name', 'N/A')
+                exam['subject_code'] = exam['subjects'].get('code', 'N/A')
+                
+        return exams[0] if exam_id and exams else exams
+    except Exception as e:
+        logger.error(f"Error fetching student exams: {str(e)}")
+        return [] if not exam_id else None
+
+@student_dashboard_bp.route('/<user_id>/hall-ticket', methods=['GET'])
+def get_hall_ticket(user_id):
+    """
+    Generate and download hall ticket for a student's exam
+    Query parameters:
+    - exam_id: ID of the exam to generate hall ticket for
+    - format: 'pdf' or 'html' (default: 'pdf')
+    """
+    try:
+        exam_id = request.args.get('exam_id')
+        if not exam_id:
+            return jsonify({
+                'success': False,
+                'error': 'Exam ID is required'
+            }), 400
+            
+        # Get student and exam data
+        student = get_student_profile(user_id)
+        if not student:
+            return jsonify({
+                'success': False,
+                'error': 'Student not found'
+            }), 404
+            
+        exam = get_student_exams(user_id, exam_id)
+        if not exam:
+            return jsonify({
+                'success': False,
+                'error': 'Exam not found or not applicable to student'
+            }), 404
+            
+        # Add student photo URL if available
+        student['photo_url'] = f"https://ui-avatars.com/api/?name={student.get('full_name', 'Student')}&size=200&background=random"
+        
+        # Format dates and times
+        if 'date' in exam and exam['date']:
+            try:
+                exam['date'] = datetime.strptime(exam['date'], '%Y-%m-%d').strftime('%d-%m-%Y')
+            except (ValueError, TypeError):
+                exam['date'] = 'N/A'
+                
+        if 'start_time' in exam and exam['start_time']:
+            try:
+                exam['start_time'] = (datetime.strptime(exam['start_time'], '%H:%M:%S')).strftime('%I:%M %p')
+            except (ValueError, TypeError):
+                exam['start_time'] = 'N/A'
+                
+        if 'end_time' in exam and exam['end_time']:
+            try:
+                exam['end_time'] = (datetime.strptime(exam['end_time'], '%H:%M:%S')).strftime('%I:%M %p')
+            except (ValueError, TypeError):
+                exam['end_time'] = 'N/A'
+        
+        # Get the output format (default to 'pdf')
+        output_format = request.args.get('format', 'pdf').lower()
+        
+        # Ensure the template directory exists
+        template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
+        os.makedirs(template_dir, exist_ok=True)
+        
+        # Render the HTML template
+        html = render_template('hall_ticket.html', student=student, exam=exam)
+        
+        if output_format == 'html':
+            return html
+            
+        # Generate PDF
+        pdf_data = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html, dest=pdf_data)
+        
+        if pisa_status.err:
+            return jsonify({
+                'success': False,
+                'error': 'Error generating PDF',
+                'details': str(pisa_status.err)
+            }), 500
+            
+        pdf_data.seek(0)
+        
+        # Create response
+        response = make_response(pdf_data.getvalue())
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=hall_ticket_{exam_id}.pdf'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error generating hall ticket: {str(e)}")
+        return subjects_response.data if hasattr(subjects_response, 'data') and subjects_response.data else []
+    except Exception as e:
+        logger.error(f"Error fetching student subjects: {str(e)}")
+        return []
+
+@student_dashboard_bp.route('/<user_id>/subjects', methods=['GET'])
+def get_student_subjects(user_id):
+    """Get subjects for student's course"""
+    try:
+        student_response = supabase.table('students').select('course_id').eq('user_id', user_id).execute()
+        
+        if not student_response.data:
+            return jsonify({'error': 'Student not found'}), 404
+        
+        course_id = student_response.data[0]['course_id']
+        
+        subjects_response = supabase.table('subjects').select('*').eq('course_id', course_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'data': subjects_response.data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@student_dashboard_bp.route('/<user_id>/exams', methods=['GET'])
+def get_student_exams(user_id):
+    """Get exams for student's course"""
+    try:
+        student_response = supabase.table('students').select('course_id, uuid_id').eq('user_id', user_id).execute()
+        
+        if not student_response.data:
+            return jsonify({'error': 'Student not found'}), 404
+        
+        course_id = student_response.data[0]['course_id']
+        student_id = student_response.data[0]['uuid_id']
+        
+        exams_response = supabase.table('exams').select('*').eq('course_id', course_id).execute()
+        
+        # Get marks for each exam
+        marks_response = supabase.table('marks').select('*').eq('student_id', student_id).execute()
+        marks_dict = {mark['exam_id']: mark for mark in marks_response.data}
+        
+        # Merge exam data with marks
+        exams_with_marks = []
+        for exam in exams_response.data:
+            exam_data = {**exam}
+            if exam['id'] in marks_dict:
+                exam_data['marks'] = marks_dict[exam['id']]
+            exams_with_marks.append(exam_data)
+        
+        return jsonify({
+            'success': True,
+            'data': exams_with_marks
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

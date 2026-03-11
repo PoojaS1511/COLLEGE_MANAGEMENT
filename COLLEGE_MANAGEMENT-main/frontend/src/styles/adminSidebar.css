@@ -1,0 +1,27 @@
+/* Admin Sidebar Scrollbar */
+.admin-sidebar {
+  overflow-y: auto;
+}
+
+/* Scrollbar width */
+.admin-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Scrollbar track */
+.admin-sidebar::-webkit-scrollbar-track {
+  background: rgba(29, 57, 94, 0.9);
+  border-radius: 10px;
+}
+
+/* Scrollbar thumb */
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background-color: #2d4b7c;
+  border-radius: 10px;
+  border: 1px solid #3a5a8c;
+}
+
+/* Hover effect */
+.admin-sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: #3a5a8c;
+}

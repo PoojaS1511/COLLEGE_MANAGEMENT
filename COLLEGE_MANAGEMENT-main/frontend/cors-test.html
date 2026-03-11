@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>CORS Test for Frontend (Port 3002) to Backend (Port 5001)</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: GET Request to Health Endpoint</h2>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: GET Request to Employees Endpoint</h2>
+        <button onclick="testEmployees()">Test Employees Endpoint</button>
+        <div id="employees-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: POST Request to Employees Endpoint</h2>
+        <button onclick="testCreateEmployee()">Test Create Employee</button>
+        <div id="create-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001';
+        
+        function displayResult(elementId, result, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `
+                <div class="${isSuccess ? 'success' : 'error'}">
+                    <h3>${isSuccess ? '✅ Success' : '❌ Error'}</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                displayResult('health-result', {
+                    status: response.status,
+                    ok: response.ok,
+                    data: data
+                }, response.ok);
+            } catch (error) {
+                displayResult('health-result', {
+                    error: error.message,
+                    stack: error.stack
+                }, false);
+            }
+        }
+
+        async function testEmployees() {
+            try {
+                const response = await fetch(`${API_BASE}/api/employees/`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                displayResult('employees-result', {
+                    status: response.status,
+                    ok: response.ok,
+                    data: data
+                }, response.ok);
+            } catch (error) {
+                displayResult('employees-result', {
+                    error: error.message,
+                    stack: error.stack
+                }, false);
+            }
+        }
+
+        async function testCreateEmployee() {
+            try {
+                const testData = {
+                    name: 'Test Employee',
+                    email: 'test@example.com',
+                    phone_number: '1234567890',
+                    role: 'Faculty',
+                    department: 'Computer Science',
+                    designation: 'Test Faculty',
+                    employee_type: 'Faculty',
+                    joining_date: '2024-01-01',
+                    status: 'Active'
+                };
+
+                const response = await fetch(`${API_BASE}/api/employees`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                displayResult('create-result', {
+                    status: response.status,
+                    ok: response.ok,
+                    data: data
+                }, response.ok);
+            } catch (error) {
+                displayResult('create-result', {
+                    error: error.message,
+                    stack: error.stack
+                }, false);
+            }
+        }
+
+        // Auto-run health test on page load
+        window.onload = function() {
+            testHealth();
+        };
+    </script>
+</body>
+</html>

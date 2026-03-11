@@ -1,0 +1,91 @@
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* Layout */
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  color: #000000;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+
+p {
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+  color: #333333;
+}
+
+/* Links */
+a {
+  color: #000000;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #555555;
+  text-decoration: underline;
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Forms */
+input, select, textarea {
+  background-color: #ffffff;
+  border: 1px solid #dddddd;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #000000;
+}
+
+/* Utility Classes */
+.text-muted {
+  color: #666666;
+}
+
+.bg-light {
+  background-color: #f9f9f9;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.75rem; }
+  h3 { font-size: 1.5rem; }
+  
+  .container {
+    padding: 0 1.5rem;
+  }
+}

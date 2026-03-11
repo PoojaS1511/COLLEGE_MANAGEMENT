@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <script>
+        async function testApi() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing API...';
+            
+            try {
+                // Test 1: Direct fetch to backend
+                resultDiv.innerHTML += '<h3>Test 1: Direct fetch to backend</h3>';
+                const API_URL = window.API_URL || 'http://localhost/api';
+                const directResponse = await fetch(`${API_URL}/academics/courses`);
+                const directData = await directResponse.json();
+                resultDiv.innerHTML += `<pre>Status: ${directResponse.status}</pre>`;
+                resultDiv.innerHTML += `<pre>${JSON.stringify(directData, null, 2)}</pre>`;
+                
+                // Test 2: Using the frontend's API service
+                resultDiv.innerHTML += '<h3>Test 2: Using frontend API service</h3>';
+                try {
+                    const apiResponse = await fetch('/api/academics/courses');
+                    const apiData = await apiResponse.json();
+                    resultDiv.innerHTML += `<pre>Status: ${apiResponse.status}</pre>`;
+                    resultDiv.innerHTML += `<pre>${JSON.stringify(apiData, null, 2)}</pre>`;
+                } catch (error) {
+                    resultDiv.innerHTML += `<div style="color: red">Error with frontend API: ${error.message}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML += `<div style="color: red">Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <button onclick="testApi()">Test API</button>
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;">
+        Click the button to test the API
+    </div>
+</body>
+</html>

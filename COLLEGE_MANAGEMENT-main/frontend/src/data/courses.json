@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "title": "Introduction to Computer Science",
+    "platform": "Harvard CS50",
+    "thumbnail": "https://cs50.harvard.edu/x/2023/og.png",
+    "url": "https://cs50.harvard.edu/x/2023/",
+    "description": "Introduction to the intellectual enterprises of computer science and the art of programming.",
+    "category": "Computer Science"
+  },
+  {
+    "id": 2,
+    "title": "Machine Learning by Andrew Ng",
+    "platform": "Coursera",
+    "thumbnail": "https://d3njjcbhbojbot.cloudfront.net/api/utilities/v1/imageproxy/",
+    "url": "https://www.coursera.org/learn/machine-learning",
+    "description": "Learn about the most effective machine learning techniques, and gain practice implementing them.",
+    "category": "Machine Learning"
+  },
+  {
+    "id": 3,
+    "title": "Web Development Bootcamp",
+    "platform": "Udemy",
+    "thumbnail": "https://img-c.udemycdn.com/course/480x270/1565838_e54e_12.jpg",
+    "url": "https://www.udemy.com/course/the-web-developer-bootcamp/",
+    "description": "The only course you need to learn web development - HTML, CSS, JS, Node, and more!",
+    "category": "Web Development"
+  },
+  {
+    "id": 4,
+    "title": "Data Science Specialization",
+    "platform": "Coursera",
+    "thumbnail": "https://d3njjcbhbojbot.cloudfront.net/api/utilities/v1/imageproxy/",
+    "url": "https://www.coursera.org/specializations/jhu-data-science",
+    "description": "Launch your career in data science. Master data analysis, visualization, and more.",
+    "category": "Data Science"
+  },
+  {
+    "id": 5,
+    "title": "Python for Everybody",
+    "platform": "Coursera",
+    "thumbnail": "https://d3njjcbhbojbot.cloudfront.net/api/utilities/v1/imageproxy/",
+    "url": "https://www.coursera.org/specializations/python",
+    "description": "Learn to program and analyze data with Python. Develop programs to gather, clean, analyze, and visualize data.",
+    "category": "Programming"
+  },
+  {
+    "id": 6,
+    "title": "The Complete JavaScript Course 2024",
+    "platform": "Udemy",
+    "thumbnail": "https://img-c.udemycdn.com/course/480x270/851712_fc61_6.jpg",
+    "url": "https://www.udemy.com/course/the-complete-javascript-course/",
+    "description": "The modern JavaScript course for everyone! Master JavaScript with projects, challenges and theory.",
+    "category": "Web Development"
+  }
+]

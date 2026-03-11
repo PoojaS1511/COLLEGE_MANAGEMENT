@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transport API Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚍 Transport API Connection Test</h1>
+    <p>This page tests the transport attendance API connection directly from the browser.</p>
+
+    <div class="test-section">
+        <h2>🔗 Basic Connection Test</h2>
+        <button onclick="testBasicConnection()">Test Basic Connection</button>
+        <div id="basic-status" class="status warning">Not tested yet</div>
+        <div id="basic-response"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Attendance API Test (with date filter)</h2>
+        <button onclick="testAttendanceAPI()">Test Attendance API</button>
+        <div id="attendance-status" class="status warning">Not tested yet</div>
+        <div id="attendance-response"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📈 Attendance API Test (all records)</h2>
+        <button onclick="testAttendanceAPIAll()">Test Attendance API (All)</button>
+        <div id="attendance-all-status" class="status warning">Not tested yet</div>
+        <div id="attendance-all-response"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001';
+
+        function updateStatus(elementId, status, message) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = message;
+        }
+
+        function showResponse(elementId, data) {
+            const element = document.getElementById(elementId);
+            if (typeof data === 'object') {
+                element.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } else {
+                element.innerHTML = `<pre>${data}</pre>`;
+            }
+        }
+
+        async function testBasicConnection() {
+            try {
+                console.log('Testing basic connection...');
+                updateStatus('basic-status', 'warning', 'Testing...');
+
+                const response = await fetch(`${API_BASE_URL}/api/transport/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus('basic-status', 'success', `✅ Connection Successful - ${data.message}`);
+                    showResponse('basic-response', data);
+                } else {
+                    updateStatus('basic-status', 'error', `❌ HTTP ${response.status}: ${response.statusText}`);
+                    showResponse('basic-response', await response.text());
+                }
+            } catch (error) {
+                console.error('Basic connection test failed:', error);
+                updateStatus('basic-status', 'error', `❌ Connection Failed: ${error.message}`);
+                showResponse('basic-response', error.toString());
+            }
+        }
+
+        async function testAttendanceAPI() {
+            try {
+                console.log('Testing attendance API with date filter...');
+                updateStatus('attendance-status', 'warning', 'Testing...');
+
+                const testDate = '2026-01-23'; // Date we know has data
+                const response = await fetch(`${API_BASE_URL}/api/transport/attendance?date=${testDate}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                console.log('Response status:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('API Response:', data);
+
+                    if (data.success && data.data && data.data.length > 0) {
+                        updateStatus('attendance-status', 'success',
+                            `✅ Success - ${data.data.length} records returned for ${testDate}`);
+                        showResponse('attendance-response', {
+                            total: data.total,
+                            returned: data.data.length,
+                            sample: data.data.slice(0, 3)
+                        });
+                    } else if (data.success && (!data.data || data.data.length === 0)) {
+                        updateStatus('attendance-status', 'warning',
+                            `⚠️ API Success but no data returned for ${testDate}`);
+                        showResponse('attendance-response', data);
+                    } else {
+                        updateStatus('attendance-status', 'error',
+                            `❌ API Error: ${data.error || 'Unknown error'}`);
+                        showResponse('attendance-response', data);
+                    }
+                } else {
+                    const errorText = await response.text();
+                    updateStatus('attendance-status', 'error',
+                        `❌ HTTP ${response.status}: ${response.statusText}`);
+                    showResponse('attendance-response', errorText);
+                }
+            } catch (error) {
+                console.error('Attendance API test failed:', error);
+                updateStatus('attendance-status', 'error', `❌ Request Failed: ${error.message}`);
+                showResponse('attendance-response', error.toString());
+            }
+        }
+
+        async function testAttendanceAPIAll() {
+            try {
+                console.log('Testing attendance API without date filter...');
+                updateStatus('attendance-all-status', 'warning', 'Testing...');
+
+                const response = await fetch(`${API_BASE_URL}/api/transport/attendance`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                console.log('Response status:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('API Response:', data);
+
+                    if (data.success && data.data && data.data.length > 0) {
+                        updateStatus('attendance-all-status', 'success',
+                            `✅ Success - ${data.data.length} records returned (all dates)`);
+                        showResponse('attendance-all-response', {
+                            total: data.total,
+                            returned: data.data.length,
+                            sample: data.data.slice(0, 3)
+                        });
+                    } else if (data.success && (!data.data || data.data.length === 0)) {
+                        updateStatus('attendance-all-status', 'warning',
+                            `⚠️ API Success but no data returned`);
+                        showResponse('attendance-all-response', data);
+                    } else {
+                        updateStatus('attendance-all-status', 'error',
+                            `❌ API Error: ${data.error || 'Unknown error'}`);
+                        showResponse('attendance-all-response', data);
+                    }
+                } else {
+                    const errorText = await response.text();
+                    updateStatus('attendance-all-status', 'error',
+                        `❌ HTTP ${response.status}: ${response.statusText}`);
+                    showResponse('attendance-all-response', errorText);
+                }
+            } catch (error) {
+                console.error('Attendance API (all) test failed:', error);
+                updateStatus('attendance-all-status', 'error', `❌ Request Failed: ${error.message}`);
+                showResponse('attendance-all-response', error.toString());
+            }
+        }
+
+        // Auto-test basic connection on page load
+        window.addEventListener('load', () => {
+            setTimeout(testBasicConnection, 1000);
+        });
+    </script>
+</body>
+</html>

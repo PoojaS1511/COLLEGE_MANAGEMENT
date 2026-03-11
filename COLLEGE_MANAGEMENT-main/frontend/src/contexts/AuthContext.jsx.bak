@@ -1,0 +1,1070 @@
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+
+// Create the auth context
+export const AuthContext = createContext(null);
+
+// Define roles
+const ROLES = {
+  ADMIN: 'admin',
+  FACULTY: 'faculty',
+  STUDENT: 'student',
+  PARENT: 'parent',
+  DRIVER: 'driver'
+};
+
+// Helper function to get user role
+const getUserRole = async (userId) => {
+  if (!userId) return null;
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', userId)
+    .single();
+    
+  if (error) {
+    console.error('Error fetching user role:', error);
+    return null;
+  }
+  
+  return data?.role || 'student'; // Default to student if no role is set
+};
+
+// Helper function to get user role
+const getUserRole = async (userId) => {
+  if (!userId) return null;
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', userId)
+    .single();
+    
+  if (error) {
+    console.error('Error fetching user role:', error);
+    return null;
+  }
+  
+  return data?.role || 'student'; // Default to student if no role is set
+};
+
+// Define permissions for each role
+const PERMISSIONS = {
+  admin: {
+    canViewDashboard: true,
+    canManageStudents: true,
+    canManageFaculty: true,
+    canManageAttendance: true,
+    canManageAcademics: true,
+    canManageFees: true,
+    canViewReports: true,
+  },
+  faculty: {
+    canViewDashboard: true,
+    canManageAttendance: true,
+    canViewStudents: true,
+    canViewReports: true,
+  },
+  student: {
+    canViewDashboard: true,
+    canViewAttendance: true,
+    canViewTimetable: true,
+  },
+  parent: {
+    canViewDashboard: true,
+    canViewChildAttendance: true,
+    canViewChildProgress: true,
+  },
+  driver: {
+    canViewDashboard: true,
+    canViewRoutes: true,
+  }
+};
+
+// Auth provider component
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check current user on mount and auth state changes
+  useEffect(() => {
+    // Check active sessions and set the user
+    const checkUser = async () => {
+      try {
+        setLoading(true);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (session?.user) {
+          const role = await getUserRole(session.user.id);
+          setUser({
+            ...session.user,
+            role,
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error checking user session:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Check initial session
+    checkUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const role = await getUserRole(session.user.id);
+        setUser({
+          ...session.user,
+          role,
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Login with email and password
+  const login = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Get additional user data
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (userError) throw userError;
+
+      // Set the user with role
+      const userWithRole = {
+        ...data.user,
+        role: userData?.role || 'student',
+        ...userData
+      };
+      
+      setUser(userWithRole);
+      return { success: true, user: userWithRole };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Sign up new user
+  const signUp = async (email, password, userData) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            ...userData,
+            role: userData.role || 'student',
+          },
+        },
+      });
+
+      if (error) throw error;
+      return { success: true, user: data.user };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Logout
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      navigate('/login');
+      return { success: true };
+    } catch (error) {
+      console.error('Logout error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Check if user has required role
+  const hasRole = (requiredRole) => {
+    if (!user) return false;
+    if (user.role === ROLES.ADMIN) return true; // Admin has access to everything
+    return user.role === requiredRole;
+  };
+
+  // Check if user has any of the required roles
+  const hasAnyRole = (roles) => {
+    if (!user) return false;
+    if (user.role === ROLES.ADMIN) return true; // Admin has access to everything
+    return roles.includes(user.role);
+  };
+
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      login,
+      signUp,
+      logout,
+      hasRole,
+      hasAnyRole,
+      ROLES,
+    }),
+    [user, loading]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check current user on mount and auth state changes
+  useEffect(() => {
+    // Check active sessions and set the user
+    const checkUser = async () => {
+      try {
+        setLoading(true);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (session?.user) {
+          const role = await getUserRole(session.user.id);
+          setUser({
+            ...session.user,
+            role,
+            // Add any additional user data you want to include
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error checking user session:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Check initial session
+    checkUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const role = await getUserRole(session.user.id);
+        setUser({
+          ...session.user,
+          role,
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Login with email and password
+  const login = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Get additional user data
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (userError) throw userError;
+
+      // Set the user with role
+      const userWithRole = {
+        ...data.user,
+        role: userData?.role || 'student',
+        ...userData
+      };
+      
+      setUser(userWithRole);
+      return { success: true, user: userWithRole };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Sign up new user
+  const signUp = async (email, password, userData) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            ...userData,
+            role: userData.role || 'student',
+          },
+        },
+      });
+
+      if (error) throw error;
+      return { success: true, user: data.user };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Logout
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      navigate('/login');
+      return { success: true };
+    } catch (error) {
+      console.error('Logout error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Check if user has required role
+  const hasRole = (requiredRole) => {
+    if (!user) return false;
+    if (user.role === ROLES.ADMIN) return true; // Admin has access to everything
+    return user.role === requiredRole;
+  };
+
+  // Check if user has any of the required roles
+  const hasAnyRole = (roles) => {
+    if (!user) return false;
+    if (user.role === ROLES.ADMIN) return true; // Admin has access to everything
+    return roles.includes(user.role);
+  };
+
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      login,
+      signUp,
+      logout,
+      hasRole,
+      hasAnyRole,
+      ROLES,
+    }),
+    [user, loading]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+export const AuthProvider = ({ children }) => {
+  // Initialize state with proper type checking and defaults
+  const [state, setState] = useState(() => {
+    // Initialize from localStorage if available
+    try {
+      const storedUser = localStorage.getItem('user');
+      const token = localStorage.getItem('access_token');
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      
+      return {
+        user: storedUser ? JSON.parse(storedUser) : null,
+        session: token ? { access_token: token } : null,
+        loading: true,
+        error: null,
+        initialized: false,
+        permissions: {}
+      };
+    } catch (error) {
+      console.error('Error initializing auth state:', error);
+      return {
+        user: null,
+        session: null,
+        loading: true,
+        error: 'Error initializing authentication',
+        initialized: false,
+        permissions: {}
+      };
+    }
+  });
+  
+  // Destructure state for easier access
+  const { user, session, loading, error, initialized, permissions } = state;
+  
+  // Helper function to update state
+  const updateState = (updates) => {
+    setState(prev => ({
+      ...prev,
+      ...updates,
+      error: updates.error || null // Reset error if not specified
+    }));
+  };
+  
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Memoized permission update
+  const updatePermissions = useCallback((role) => {
+    updateState({ 
+      permissions: PERMISSIONS[role] || {},
+      user: state.user ? { ...state.user, permissions: PERMISSIONS[role] || {} } : null
+    });
+  }, [state.user]);
+
+  // Get redirect path based on role
+  const getRedirectPath = useCallback((role) => {
+    const normalizedRole = (role || '').toLowerCase().trim();
+    
+    // Debug log to check the role being received
+    console.log('getRedirectPath - Role received:', normalizedRole);
+    
+    // Map roles to their respective dashboard paths
+    const rolePathMap = {
+      'admin': '/admin/dashboard',
+      'teacher': '/faculty/dashboard',
+      'faculty': '/faculty/dashboard',
+      'student': '/student/dashboard',
+      'parent': '/parent/dashboard',
+      'transport_admin': '/admin/transport',
+      'driver': '/driver/dashboard'
+    };
+    
+    const path = rolePathMap[normalizedRole] || '/';
+    console.log('Redirecting to path:', path, 'for role:', normalizedRole);
+    return path;
+  }, []);
+
+  // Handle user session with optimized state updates
+  const handleUserSession = useCallback(async (currentSession) => {
+    console.log('=== handleUserSession Called ===');
+    console.log('Has session:', !!currentSession);
+    console.log('State initialized:', state.initialized);
+    console.log('State loading:', state.loading);
+
+    // Skip if we already processed this session AND we're initialized
+    if (currentSession?.access_token === state.session?.access_token && state.initialized) {
+      console.log('Session unchanged and already initialized, skipping');
+      return;
+    }
+
+    console.log('Handling user session:', { hasSession: !!currentSession, hasUser: currentSession?.user });
+    
+    // Early return if no session or no user in session
+    if (!currentSession?.user) {
+      // Only clear if we have a current user or session
+      if (state.user || state.session) {
+        console.log('No active session found, clearing auth state');
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('sb-qkaaoeismqnhjyikgkme.supabase.co-auth-token');
+        
+        updateState({
+          user: null,
+          session: null,
+          permissions: {},
+          loading: false,
+          initialized: true,
+          error: null
+        });
+      }
+      return;
+    }
+    
+    // If we have a session but no access token, it's invalid
+    if (!currentSession.access_token) {
+      console.warn('Session exists but has no access token');
+      if (state.user !== null || state.session !== null) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('isLoggedIn');
+        
+        updateState({
+          user: null,
+          session: null,
+          permissions: {},
+          loading: false,
+          initialized: true,
+          error: 'Invalid session: Missing access token'
+        });
+      }
+      return;
+    }
+
+    try {
+      // Get role from user_metadata (Supabase stores it there)
+      const userRole = (currentSession.user.user_metadata?.role || ROLES.STUDENT).toLowerCase();
+      console.log('Processing session for user:', currentSession.user.email, 'Role:', userRole);
+
+      // Create user data object with role
+      const userData = {
+        ...currentSession.user,
+        role: userRole,
+        full_name: currentSession.user.user_metadata?.full_name || currentSession.user.email.split('@')[0]
+      };
+
+      // Create a clean session object
+      const cleanSession = {
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token,
+        expires_in: currentSession.expires_in,
+        expires_at: currentSession.expires_at,
+        token_type: currentSession.token_type,
+        user: userData
+      };
+
+      // Update localStorage
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('access_token', currentSession.access_token);
+      localStorage.setItem('isLoggedIn', 'true');
+
+      // Update permissions based on role
+      updatePermissions(userRole);
+
+      console.log('=== handleUserSession - Setting State ===');
+      console.log('User:', userData.email, 'Role:', userRole);
+      console.log('Setting initialized: true, loading: false');
+      console.log('=========================================');
+
+      // Update state
+      updateState({
+        user: userData,
+        session: cleanSession,
+        loading: false,
+        initialized: true,
+        error: null
+      });
+
+      // Handle redirection if on login page
+      const currentPath = window.location.pathname;
+      const isOnLoginPage = currentPath === '/' || 
+                          currentPath.startsWith('/login') || 
+                          currentPath === '/signin';
+
+      if (isOnLoginPage || currentPath === '/') {
+        const redirectPath = getRedirectPath(userRole);
+        console.log('Auth - Redirecting to:', redirectPath, 'for role:', userRole);
+        
+        // Small delay to ensure state is updated before redirect
+        setTimeout(() => {
+          if (window.location.pathname !== redirectPath) {
+            window.location.href = redirectPath;
+          }
+        }, 50);
+      }
+    } catch (error) {
+      console.error('Error handling user session:', error);
+      updateState({
+        loading: false,
+        initialized: true,
+        error: error.message,
+        user: null,
+        session: null,
+        permissions: {}
+      });
+      await supabase.auth.signOut();
+      localStorage.removeItem('user');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('isLoggedIn');
+    }
+  }, [navigate, getRedirectPath, updatePermissions]);
+
+  // Handle session errors
+  const handleSessionError = useCallback(async (error) => {
+    console.error('Error handling user session:', error);
+    updateState({
+      loading: false,
+      initialized: true,
+      error: error.message,
+      user: null,
+      session: null,
+      permissions: {}
+    });
+    await supabase.auth.signOut();
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('isLoggedIn');
+  }, [updateState]);
+
+  // Optimized login function with immediate redirect
+  const login = useCallback(async (email, password) => {
+    try {
+      updateState(prev => ({ ...prev, loading: true, error: null }));
+      
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim()
+      });
+
+      if (authError) throw authError;
+      if (!data || !data.user) throw new Error('No user data returned');
+
+      // Get the user's role from user_metadata
+      const userRole = data.user.user_metadata?.role?.toLowerCase() || 'student';
+      console.log('=== LOGIN DEBUG ===');
+      console.log('User logged in:', data.user.email);
+      console.log('Raw role from metadata:', data.user.user_metadata?.role);
+      console.log('Normalized role:', userRole);
+
+      // Get the redirect path based on role
+      const redirectPath = getRedirectPath(userRole);
+      console.log('Redirect path from getRedirectPath:', redirectPath);
+      console.log('Current location:', window.location.href);
+      console.log('Current pathname:', window.location.pathname);
+
+      // Store user data in localStorage
+      const userData = {
+        ...data.user,
+        role: userRole,
+        full_name: data.user.user_metadata?.full_name || data.user.email.split('@')[0]
+      };
+
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('access_token', data.session.access_token);
+      localStorage.setItem('isLoggedIn', 'true');
+
+      console.log('About to redirect to:', redirectPath);
+      console.log('===================');
+
+      // Force a page reload to ensure all state is properly initialized
+      // Use absolute URL to prevent any path concatenation issues
+      const absoluteUrl = window.location.origin + redirectPath;
+      console.log('Absolute URL:', absoluteUrl);
+      window.location.href = absoluteUrl;
+      return; // Prevent any further execution after redirect
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      updateState(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message
+      }));
+      throw error;
+    }
+}, [updateState, updatePermissions, getRedirectPath]);
+
+// Logout function with proper cleanup
+const logout = useCallback(async () => {
+  try {
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut();
+    
+    // Clear all auth-related items from localStorage
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('sb-qkaaoeismqnhjyikgkme.supabase.co-auth-token');
+    
+    // Clear any other Supabase-related items
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Update state
+    updateState({
+      user: null,
+      session: null,
+      permissions: {},
+      loading: false,
+      error: null,
+      initialized: true
+    });
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error('Logout error:', error);
+    // Even if there's an error, clear local state
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('isLoggedIn');
+    
+    updateState({
+      user: null,
+      session: null,
+      permissions: {},
+      loading: false,
+      error: 'You have been signed out, but there was an issue with the server.',
+      initialized: true
+    });
+    
+    return { success: false, error: error.message };
+  }
+}, [updateState]);
+
+// Check if user is authenticated
+const isAuthenticated = useCallback(() => {
+  // Check for valid session in state
+  if (user && session?.access_token) {
+    return true;
+  }
+  
+  // Fallback to check localStorage
+  const storedToken = localStorage.getItem('access_token');
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  
+  return !!(storedToken && isLoggedIn);
+}, [user, session]);
+
+// Role and permission checks
+const hasRole = useCallback((requiredRole) => {
+  return user?.role === requiredRole;
+}, [user]);
+
+const hasPermission = useCallback((permission) => {
+  return permissions[permission] === true;
+}, [permissions]);
+
+// Initialize auth state with useCallback to prevent unnecessary re-renders
+const initializeAuth = useCallback(async () => {
+  // Initialize from localStorage first for instant UI
+  const storedUser = localStorage.getItem('user');
+  const storedToken = localStorage.getItem('access_token');
+  
+  if (storedUser && storedToken) {
+    try {
+      const userData = JSON.parse(storedUser);
+      // Only update state if we have valid data
+      if (userData && storedToken) {
+        updateState(prev => ({
+          ...prev,
+          user: userData,
+          session: { access_token: storedToken },
+          loading: false,
+          initialized: true
+        }));
+        updatePermissions(userData.role);
+        return true; // Indicate we have a valid session
+      }
+    } catch (e) {
+      console.warn('Failed to parse stored user data', e);
+      localStorage.removeItem('user');
+      localStorage.removeItem('access_token');
+    }
+  }
+  return false;
+}, [updatePermissions]);
+
+  // Handle auth state changes with optimized initialization
+  useEffect(() => {
+    let isMounted = true;
+    let authSubscription = null;
+    let isInitialized = false;
+    let initializationInProgress = false;
+    let initTimeout = null;
+    
+    const initializeFromStorage = () => {
+      if (isInitialized || !isMounted || initializationInProgress) return false;
+      initializationInProgress = true;
+      
+      try {
+        const storedUser = localStorage.getItem('user');
+        const storedToken = localStorage.getItem('access_token');
+        
+        if (storedUser && storedToken) {
+          const userData = JSON.parse(storedUser);
+          if (userData) {
+            if (JSON.stringify(state.user) !== storedUser || 
+                state.session?.access_token !== storedToken) {
+              updateState(prev => ({
+                ...prev,
+                user: userData,
+                session: { access_token: storedToken },
+                loading: false,
+                initialized: true
+              }));
+              updatePermissions(userData.role);
+            }
+            isInitialized = true;
+            initializationInProgress = false;
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to initialize from storage', e);
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+      }
+      return false;
+    };
+
+    const checkSession = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        
+        if (currentSession) {
+          console.log('Initial session found, handling...');
+          await handleUserSession(currentSession);
+        } else {
+          console.log('No active session found');
+          updateState(prev => ({
+            ...prev,
+            loading: false,
+            initialized: true,
+            user: null,
+            session: null
+          }));
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        if (isMounted) {
+          updateState({
+            user: null,
+            session: null,
+            loading: false,
+            initialized: true,
+            error: error.message || 'Failed to initialize authentication'
+          });
+        }
+      } finally {
+        initializationInProgress = false;
+      }
+    };
+
+    // Set up the auth state change listener
+    const setupAuthListener = () => {
+      const { data: authListener } = supabase.auth.onAuthStateChange(
+        async (event, currentSession) => {
+          console.log('Auth state changed:', event, currentSession);
+          try {
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+              await handleUserSession(currentSession);
+            } else if (event === 'SIGNED_OUT') {
+              await logout();
+            } else if (event === 'USER_UPDATED') {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                updateState(prev => ({
+                  ...prev,
+                  user: { ...prev.user, ...user },
+                  session: { ...prev.session, user }
+                }));
+              }
+            }
+          } catch (error) {
+            console.error('Error in auth state change handler:', error);
+            if (error.message) {
+              updateState(prev => ({
+                ...prev,
+                error: error.message,
+                loading: false,
+                initialized: true
+              }));
+            }
+          }
+        }
+      );
+      return authListener;
+    };
+
+    // Initialize auth
+    const initializeAuth = async () => {
+      if (!isMounted || isInitialized) return;
+      
+      // First try to initialize from localStorage for instant UI
+      if (isMounted) {
+        authSubscription = setupAuthListener();
+        await checkSession();
+      }
+    };
+
+    // Small delay to prevent race conditions
+    initTimeout = setTimeout(initializeAuth, 100);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(initTimeout);
+      if (authSubscription?.unsubscribe) {
+        console.log('Cleaning up auth subscription');
+        authSubscription.unsubscribe();
+        authSubscription = null;
+      }
+    };
+  }, [handleUserSession]);
+
+  // Create the context value
+const value = useMemo(
+  () => ({
+    user,
+    session,
+    loading,
+    error,
+    initialized,
+    login,
+    logout,
+    isAuthenticated: isAuthenticated(),
+    hasRole,
+    updateState,
+    getRedirectPath,
+    handleUserSession,
+    hasPermission: (permission) => {
+      if (!user) return false;
+      return permissions[permission] === true;
+    },
+    updateUser: (updates) => {
+      const updatedUser = { ...user, ...updates };
+      updateState({ user: updatedUser });
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  }), [
+    user, 
+    session, 
+    loading, 
+    error, 
+    initialized, 
+    login, 
+    logout, 
+    permissions, 
+    isAuthenticated, 
+    hasRole, 
+    updateState, 
+    getRedirectPath, 
+    handleUserSession
+  ]);
+
+  // Memoize public routes to prevent re-renders
+  const publicRoutes = useMemo(() => [
+    '/', '/home', '/about', '/admissions', '/contact', 
+    '/login', '/signup', '/forgot-password', '/_loading',
+    '/privacy-policy', '/terms-of-service', '/faq',
+    '/auth/callback', '/api/*', '/assets/*', '/images/*',
+    '/static/*', '/favicon.ico', '/robots.txt', '/sitemap.xml',
+    '/manifest.json', '/service-worker.js', '/workbox-*.js',
+    '/precache-manifest.*.js', '/static/js/*', '/static/css/*',
+    '/static/media/*', '/*.png', '/*.jpg', '/*.jpeg', '/*.gif', '/*.svg',
+    '/*.ico', '/*.json', '/*.txt', '/*.xml', '/*.webmanifest',
+    '/*.webp', '/*.woff', '/*.woff2', '/*.ttf', '/*.eot'
+  ], []);
+  
+  // Check if current route is public - this runs first before any auth checks
+  const isPublicRoute = useMemo(() => {
+    const path = location.pathname;
+    
+    // Check if path is in public routes or starts with /login/
+    return publicRoutes.some(route => {
+      if (route.endsWith('*')) {
+        const base = route.slice(0, -1); // Remove the *
+        return path.startsWith(base);
+      }
+      return path === route;
+    }) || path.startsWith('/login/') || path === '';
+  }, [location.pathname, publicRoutes]);
+
+  // If it's a public route, render immediately without waiting for auth to initialize
+  if (isPublicRoute) {
+    return (
+      <AuthContext.Provider value={value}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  // For protected routes, show loading state until auth is initialized
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Handle errors after initialization
+  if (error) {
+    console.error('Auth error:', error);
+    return (
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Error</h2>
+          <p className="text-gray-700 mb-4">There was an issue with authentication. Please refresh the page or try again later.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+
+// Custom hook to use the auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+// Higher Order Component for protecting routes based on roles
+export const withAuth = (Component, allowedRoles = []) => {
+  return (props) => {
+    const { user, loading } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+      if (!loading && !user) {
+        // Redirect to login if not authenticated
+        navigate('/login', { state: { from: location.pathname } });
+      } else if (!loading && user && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+        // Redirect to unauthorized if user doesn't have required role
+        navigate('/unauthorized');
+      }
+    }, [user, loading, navigate, location]);
+
+    if (loading) return <div>Loading...</div>;
+    if (!user) return null;
+    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+      return <div>You don't have permission to access this page.</div>;
+    }
+
+    return <Component {...props} />;
+  };
+};
+
+export default AuthContext;

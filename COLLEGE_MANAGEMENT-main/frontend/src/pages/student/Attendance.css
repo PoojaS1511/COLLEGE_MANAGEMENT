@@ -1,0 +1,244 @@
+/* Attendance Dashboard Styles */
+.attendance-dashboard {
+  padding: 24px;
+  background-color: #f5f7fa;
+  min-height: 100%;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dashboard-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.view-selector,
+.date-range-picker,
+.subject-filter {
+  min-width: 180px;
+}
+
+/* Stats Cards */
+.stats-row {
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.stat-content {
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.stat-title {
+  color: #666;
+  margin-bottom: 16px !important;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1a1a1a;
+}
+
+.stat-percentage {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 16px 0;
+}
+
+.stat-percentage.positive {
+  color: #52c41a;
+}
+
+.stat-percentage.negative {
+  color: #ff4d4f;
+}
+
+.stat-detail {
+  color: #8c8c8c;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* Subject Card */
+.subject-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
+}
+
+.attendance-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: #666;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.legend-dot.present {
+  background-color: #52c41a;
+}
+
+.legend-dot.absent {
+  background-color: #ff4d4f;
+}
+
+/* Attendance Progress */
+.attendance-progress {
+  margin: 16px 0;
+}
+
+.attendance-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.attendance-bars {
+  flex: 1;
+  height: 24px;
+  background-color: #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+}
+
+.attendance-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.attendance-bar.present {
+  background-color: #52c41a;
+}
+
+.attendance-bar.absent {
+  background-color: #ff4d4f;
+}
+
+.attendance-percentage {
+  min-width: 50px;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* Status Tags */
+.status-tag {
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Table Styles */
+.attendance-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.attendance-table .ant-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.attendance-table .ant-table-thead > tr > th {
+  background-color: #fafafa;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.attendance-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Calendar View */
+.calendar-card {
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-placeholder {
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .dashboard-controls {
+    width: 100%;
+  }
+  
+  .view-selector,
+  .date-range-picker,
+  .subject-filter {
+    width: 100%;
+  }
+  
+  .stat-card {
+    margin-bottom: 16px;
+  }
+  
+  .attendance-progress-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .attendance-bars {
+    width: 100%;
+  }
+  
+  .attendance-percentage {
+    text-align: left;
+    width: 100%;
+  }
+}
+
+/* Animation for status changes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.attendance-table .ant-table-tbody > tr {
+  animation: fadeIn 0.3s ease-out;
+}

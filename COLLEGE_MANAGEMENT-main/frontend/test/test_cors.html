@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+    <script>
+        async function testApi() {
+            const API_URL = window.API_URL || 'http://localhost/api';
+            const url = `${API_URL}/academics/courses`;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.textContent = 'Testing API...';
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h3>API Response (Status: ${response.status})</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    <h4>Response Headers:</h4>
+                    <pre>${JSON.stringify(Object.fromEntries([...response.headers.entries()]), null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3 style="color: red">Error</h3>
+                    <p>${error.message}</p>
+                    <h4>Stack:</h4>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>CORS Test Page</h1>
+    <button onclick="testApi()">Test API</button>
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;">
+        Click the button to test the API
+    </div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>API Connection Test - Quality Policies</h1>
+
+    <div class="test-section">
+        <h2>Test API Connection</h2>
+        <button onclick="testAPIConnection()">Test /api/quality/policies</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function testAPIConnection() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing API connection...</p>';
+
+            try {
+                console.log('Testing API connection to: http://localhost:5001/api/quality/policies');
+
+                const response = await fetch('http://localhost:5001/api/quality/policies', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ API Connection Successful!</h3>
+                            <p>Status: ${response.status}</p>
+                            <p>Success: ${data.success}</p>
+                            <p>Policies returned: ${data.data ? data.data.length : 0}</p>
+                            <p>Total items: ${data.pagination ? data.pagination.totalItems : 'N/A'}</p>
+                            <h4>Sample Data:</h4>
+                            <pre>${JSON.stringify(data.data ? data.data.slice(0, 2) : 'No data', null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ API Error</h3>
+                            <p>Status: ${response.status}</p>
+                            <p>Response: ${JSON.stringify(data)}</p>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Network Error</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Check if the backend server is running on http://localhost:5001</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            setTimeout(testAPIConnection, 1000);
+        };
+    </script>
+</body>
+</html>

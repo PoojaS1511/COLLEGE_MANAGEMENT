@@ -1,0 +1,623 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  BuildingOffice2Icon, 
+  CalendarIcon, 
+  ClockIcon, 
+  UserGroupIcon, 
+  CheckCircleIcon, 
+  XCircleIcon, 
+  PlusIcon, 
+  TrashIcon, 
+  MagnifyingGlassIcon 
+} from '@heroicons/react/24/outline';
+import { 
+  fetchClassrooms, 
+  createClassroom, 
+  deleteClassroom,
+  fetchBuildings,
+  fetchRoomTypes,
+  getDayName
+} from '../../../services/classroomService';
+
+const ClassroomAllocation = () => {
+  const [classrooms, setClassrooms] = useState([]);
+  const [buildings, setBuildings] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({
+    building: 'All',
+    floor: 'All',
+    type: 'All',
+    search: ''
+  });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedClassroom, setSelectedClassroom] = useState(null);
+  const [newClassroom, setNewClassroom] = useState({
+    name: '',
+    building_id: '',
+    room_type_id: '',
+    floor: '1',
+    capacity: 30,
+    is_active: true
+  });
+
+  // Fetch data on component mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        console.log('Starting to load data...');
+        setIsLoading(true);
+        
+        // Log environment variables (without sensitive data)
+        console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Missing');
+        
+        const [classroomsData, buildingsData, typesData] = await Promise.all([
+          fetchClassrooms().catch(err => {
+            console.error('Error in fetchClassrooms:', err);
+            throw err;
+          }),
+          fetchBuildings().catch(err => {
+            console.error('Error in fetchBuildings:', err);
+            throw err;
+          }),
+          fetchRoomTypes().catch(err => {
+            console.error('Error in fetchRoomTypes:', err);
+            throw err;
+          })
+        ]);
+        
+        if (!isMounted) return;
+        
+        console.log('Data loaded:', { 
+          classrooms: classroomsData?.length || 0, 
+          buildings: buildingsData?.length || 0, 
+          roomTypes: typesData?.length || 0 
+        });
+        
+        setClassrooms(classroomsData || []);
+        setBuildings(buildingsData || []);
+        setRoomTypes(typesData || []);
+        
+        // Set default building and room type if available
+        if (buildingsData?.length > 0 && !newClassroom.building_id) {
+          setNewClassroom(prev => ({
+            ...prev,
+            building_id: buildingsData[0]?.id || '',
+            room_type_id: typesData[0]?.id || ''
+          }));
+        }
+      } catch (err) {
+        console.error('Error in loadData:', err);
+        const errorMessage = err?.message || 'Failed to load data. Please try again later.';
+        setError(errorMessage);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Handle adding a new classroom
+  const handleAddClassroom = async (e) => {
+    e.preventDefault();
+    try {
+      setIsLoading(true);
+      const createdClassroom = await createClassroom(newClassroom);
+      setClassrooms([...classrooms, createdClassroom]);
+      setShowAddModal(false);
+      // Reset form
+      setNewClassroom({
+        name: '',
+        building_id: buildings[0]?.id || '',
+        room_type_id: roomTypes[0]?.id || '',
+        floor: '1',
+        capacity: 30,
+        is_active: true
+      });
+    } catch (err) {
+      setError('Failed to add classroom. Please try again.');
+      console.error('Error adding classroom:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle deleting a classroom
+  const handleDeleteClassroom = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this classroom?')) {
+      return;
+    }
+    try {
+      setIsLoading(true);
+      await deleteClassroom(id);
+      setClassrooms(classrooms.filter(c => c.id !== id));
+    } catch (err) {
+      setError('Failed to delete classroom. Please try again.');
+      console.error('Error deleting classroom:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get building name by ID
+  const getBuildingName = (buildingId) => {
+    const building = buildings.find(b => b.id === buildingId);
+    return building ? building.name : 'Unknown';
+  };
+
+  // Get room type name by ID
+  const getRoomTypeName = (typeId) => {
+    const type = roomTypes.find(t => t.id === typeId);
+    return type ? type.name : 'Unknown';
+  };
+
+  // Debug output
+  console.log('Current state:', {
+    isLoading,
+    error,
+    classrooms: classrooms?.length || 0,
+    buildings: buildings?.length || 0,
+    roomTypes: roomTypes?.length || 0,
+    filters
+  });
+
+  if (isLoading && classrooms.length === 0) {
+    return <div className="flex justify-center items-center h-64">Loading classrooms...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-l-4 border-red-400 p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter classrooms based on filters
+  const filteredClassrooms = classrooms.filter(classroom => {
+    const matchesBuilding = filters.building === 'All' || 
+                         classroom.building_id === filters.building;
+    const matchesFloor = filters.floor === 'All' || 
+                       classroom.floor.toString() === filters.floor;
+    const matchesType = filters.type === 'All' || 
+                     classroom.room_type_id === filters.type;
+    const matchesSearch = !filters.search || 
+                       classroom.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+                       (classroom.room_type && 
+                        classroom.room_type.name.toLowerCase().includes(filters.search.toLowerCase()));
+
+    return matchesBuilding && matchesFloor && matchesType && matchesSearch;
+  });
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setNewClassroom(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  return (
+    <div className="container mx-auto p-6">
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Classroom Allocation</h1>
+            <p className="text-gray-600">Manage and track classroom assignments</p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          >
+            <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+            {isLoading ? 'Loading...' : 'Add Classroom'}
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label htmlFor="building" className="block text-sm font-medium text-gray-700 mb-1">Building</label>
+              <select
+                id="building"
+                name="building"
+                value={filters.building}
+                onChange={handleFilterChange}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                disabled={isLoading}
+              >
+                <option value="All">All Buildings</option>
+                {buildings.map(building => (
+                  <option key={building.id} value={building.id}>Building {building.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="floor" className="block text-sm font-medium text-gray-700 mb-1">Floor</label>
+              <select
+                id="floor"
+                name="floor"
+                value={filters.floor}
+                onChange={handleFilterChange}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                disabled={isLoading}
+              >
+                <option value="All">All Floors</option>
+                {[...new Set(classrooms.map(c => c.floor))].sort().map(floor => (
+                  <option key={floor} value={floor}>Floor {floor}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                id="type"
+                name="type"
+                value={filters.type}
+                onChange={handleFilterChange}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                disabled={isLoading}
+              >
+                <option value="All">All Types</option>
+                {roomTypes.map(type => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <div className="relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="search"
+                  id="search"
+                  value={filters.search}
+                  onChange={(e) => setFilters({...filters, search: e.target.value})}
+                  className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                  placeholder="Search classrooms..."
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Classrooms Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredClassrooms.map(classroom => (
+            <div key={classroom.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+              <div className="p-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <BuildingOffice2Icon className="h-5 w-5 text-indigo-500 mr-2" />
+                      {classroom.name}
+                      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        {getRoomTypeName(classroom.room_type_id)}
+                      </span>
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {getBuildingName(classroom.building_id)}, Floor {classroom.floor}
+                    </p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedClassroom(classroom);
+                        setShowScheduleModal(true);
+                      }}
+                      className="text-indigo-600 hover:text-indigo-900"
+                      title="View Schedule"
+                      disabled={isLoading}
+                    >
+                      <CalendarIcon className="h-5 w-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClassroom(classroom.id)}
+                      className="text-red-400 hover:text-red-600"
+                      title="Delete"
+                      disabled={isLoading}
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <UserGroupIcon className="h-5 w-5 text-gray-400 mr-1.5" />
+                    <span className="text-sm text-gray-600">{classroom.capacity} students</span>
+                  </div>
+                  <div className="flex items-center">
+                    {classroom.is_active ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircleIcon className="-ml-0.5 mr-1.5 h-4 w-4 text-green-500" />
+                        Available
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <XCircleIcon className="-ml-0.5 mr-1.5 h-4 w-4 text-red-500" />
+                        Unavailable
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {classroom.schedules && classroom.schedules.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Current Schedule</h4>
+                    <div className="space-y-2">
+                      {classroom.schedules.map((schedule, idx) => (
+                        <div key={idx} className="bg-blue-50 p-2 rounded text-sm">
+                          <div className="font-medium">{schedule.course?.name || 'N/A'}</div>
+                          <div className="text-gray-600">{schedule.faculty?.name || 'N/A'}</div>
+                          <div className="flex items-center text-xs text-gray-500 mt-1">
+                            <ClockIcon className="h-3.5 w-3.5 mr-1" />
+                            {schedule.start_time} - {schedule.end_time} • {getDayName(schedule.day_of_week)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredClassrooms.length === 0 && !isLoading && (
+          <div className="text-center py-12">
+            <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No classrooms found</h3>
+            <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Add Classroom Modal */}
+      {showAddModal && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div>
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100">
+                  <BuildingOffice2Icon className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Add New Classroom</h3>
+                  <div className="mt-2">
+                    <form onSubmit={handleAddClassroom}>
+                      <div className="space-y-4">
+                        <div>
+                          <label htmlFor="name" className="block text-sm font-medium text-gray-700 text-left">Room Number</label>
+                          <input
+                            type="text"
+                            name="name"
+                            id="name"
+                            required
+                            value={newClassroom.name}
+                            onChange={handleInputChange}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="e.g., A-101"
+                            disabled={isLoading}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="building_id" className="block text-sm font-medium text-gray-700 text-left">Building</label>
+                            <select
+                              id="building_id"
+                              name="building_id"
+                              required
+                              value={newClassroom.building_id}
+                              onChange={handleInputChange}
+                              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                              disabled={isLoading}
+                            >
+                              {buildings.map(building => (
+                                <option key={building.id} value={building.id}>Building {building.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor="floor" className="block text-sm font-medium text-gray-700 text-left">Floor</label>
+                            <select
+                              id="floor"
+                              name="floor"
+                              required
+                              value={newClassroom.floor}
+                              onChange={handleInputChange}
+                              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                              disabled={isLoading}
+                            >
+                              {[1, 2, 3, 4, 5].map(floor => (
+                                <option key={floor} value={floor}>Floor {floor}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="room_type_id" className="block text-sm font-medium text-gray-700 text-left">Room Type</label>
+                            <select
+                              id="room_type_id"
+                              name="room_type_id"
+                              required
+                              value={newClassroom.room_type_id}
+                              onChange={handleInputChange}
+                              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                              disabled={isLoading}
+                            >
+                              {roomTypes.map(type => (
+                                <option key={type.id} value={type.id}>{type.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor="capacity" className="block text-sm font-medium text-gray-700 text-left">Capacity</label>
+                            <input
+                              type="number"
+                              name="capacity"
+                              id="capacity"
+                              required
+                              min="1"
+                              value={newClassroom.capacity}
+                              onChange={handleInputChange}
+                              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                              placeholder="e.g., 40"
+                              disabled={isLoading}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center">
+                          <input
+                            id="is_active"
+                            name="is_active"
+                            type="checkbox"
+                            checked={newClassroom.is_active}
+                            onChange={handleInputChange}
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            disabled={isLoading}
+                          />
+                          <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700">
+                            Available for booking
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                        <button
+                          type="submit"
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? 'Adding...' : 'Add Classroom'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddModal(false)}
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Modal */}
+      {showScheduleModal && selectedClassroom && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
+              <div>
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                  <CalendarIcon className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="mt-3 text-center sm:mt-5">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    Schedule for {selectedClassroom.name}
+                  </h3>
+                  <div className="mt-4">
+                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                      {selectedClassroom.schedules && selectedClassroom.schedules.length > 0 ? (
+                        <ul className="divide-y divide-gray-200">
+                          {selectedClassroom.schedules.map((schedule, index) => (
+                            <li key={index} className="px-4 py-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-indigo-600 truncate">
+                                    {schedule.course?.name || 'N/A'}
+                                  </p>
+                                  <p className="text-sm text-gray-500">{schedule.faculty?.name || 'N/A'}</p>
+                                  <div className="mt-2 flex items-center text-sm text-gray-500">
+                                    <ClockIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                                    <p>
+                                      {schedule.start_time} - {schedule.end_time} • {getDayName(schedule.day_of_week)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-center py-8">
+                          <CalendarIcon className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No schedule</h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            There are no scheduled classes for this classroom.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-6">
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm"
+                  onClick={() => setShowScheduleModal(false)}
+                  disabled={isLoading}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ClassroomAllocation;

@@ -1,0 +1,214 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+// Create the auth context
+const AuthContext = createContext(null);
+
+// Define roles and their permissions
+const ROLES = {
+  ADMIN: 'admin',
+  TEACHER: 'teacher',
+  STUDENT: 'student',
+  PARENT: 'parent',
+  TRANSPORT_ADMIN: 'transport_admin',
+  DRIVER: 'driver'
+};
+
+// Define permissions for each role
+const PERMISSIONS = {
+  [ROLES.ADMIN]: {
+    canViewDashboard: true,
+    canManageStudents: true,
+    canManageTeachers: true,
+    canManageParents: true,
+    canManageAttendance: true,
+    canManageAcademics: true,
+    canManageTransport: true,
+    canManageFees: true,
+    canViewReports: true,
+  },
+  [ROLES.TEACHER]: {
+    canViewDashboard: true,
+    canManageAttendance: true,
+    canViewStudents: true,
+    canViewReports: true,
+  },
+  [ROLES.STUDENT]: {
+    canViewDashboard: true,
+    canViewAttendance: true,
+    canViewTimetable: true,
+  },
+  [ROLES.PARENT]: {
+    canViewDashboard: true,
+    canViewChildAttendance: true,
+    canViewChildProgress: true,
+    canViewReports: true,
+    canSendNotifications: false,
+    canViewTransport: true
+  },
+  [ROLES.TRANSPORT_ADMIN]: {
+    canViewDashboard: true,
+    canManageTransport: true,
+    canManageRoutes: true,
+    canManageDrivers: true,
+    canViewReports: true,
+    redirectTo: '/admin/transport'
+  },
+  [ROLES.DRIVER]: {
+    canViewDashboard: true,
+    canViewRoutes: true,
+    canUpdateStatus: true,
+    redirectTo: '/driver/dashboard'
+  }
+};
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState({});
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Update permissions when user changes
+  const updatePermissions = useCallback((role) => {
+    setPermissions(PERMISSIONS[role] || {});
+  }, []);
+
+  // Login function
+  const login = useCallback(async (email) => {
+    try {
+      setLoading(true);
+      
+      // Simple role detection based on email
+      let role = ROLES.STUDENT;
+      let fullName = 'Demo User';
+      
+      if (email.includes('admin@')) {
+        role = ROLES.ADMIN;
+        fullName = 'Admin User';
+      } else if (email.includes('teacher@') || email.includes('faculty@')) {
+        role = ROLES.TEACHER;
+        fullName = 'Faculty Member';
+      } else if (email.includes('parent@')) {
+        role = ROLES.PARENT;
+        fullName = 'Parent';
+      } else if (email.includes('driver@')) {
+        role = ROLES.DRIVER;
+        fullName = 'Driver';
+      } else if (email.includes('transport@')) {
+        role = ROLES.TRANSPORT_ADMIN;
+        fullName = 'Transport Admin';
+      }
+
+      const userData = {
+        id: `demo-${role}-${Date.now()}`,
+        email: email,
+        role: role,
+        full_name: fullName,
+        isAuthenticated: true
+      };
+
+      setUser(userData);
+      updatePermissions(role);
+
+      // Save to local storage
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('isLoggedIn', 'true');
+
+      // Redirect based on role
+      const from = location.state?.from?.pathname || 
+                 (role === ROLES.ADMIN ? '/admin/dashboard' :
+                  role === ROLES.TEACHER ? '/faculty/dashboard' :
+                  role === ROLES.PARENT ? '/parent/dashboard' :
+                  role === ROLES.DRIVER ? '/driver/dashboard' :
+                  role === ROLES.TRANSPORT_ADMIN ? '/transport/dashboard' :
+                  '/student/dashboard');
+      
+      navigate(from, { replace: true });
+      return { success: true };
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, location.state, updatePermissions]);
+
+  // Logout function
+  const logout = useCallback(() => {
+    try {
+      setLoading(true);
+      setUser(null);
+      setPermissions({});
+      localStorage.removeItem('user');
+      localStorage.removeItem('isLoggedIn');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  // Check if user is authenticated
+  const isAuthenticated = useCallback(() => {
+    return !!user || !!localStorage.getItem('isLoggedIn');
+  }, [user]);
+
+  // Check if user has specific role
+  const hasRole = useCallback((requiredRole) => {
+    return user?.role === requiredRole;
+  }, [user]);
+
+  // Check if user has specific permission
+  const hasPermission = useCallback((permission) => {
+    return permissions[permission] === true;
+  }, [permissions]);
+
+  // Handle initial auth state
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        updatePermissions(userData.role);
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('user');
+        localStorage.removeItem('isLoggedIn');
+      }
+    }
+    setLoading(false);
+  }, [updatePermissions]);
+
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
+    isAuthenticated,
+    hasRole,
+    hasPermission,
+    permissions,
+    ROLES
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};
+
+// Custom hook to use the auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export default AuthContext;

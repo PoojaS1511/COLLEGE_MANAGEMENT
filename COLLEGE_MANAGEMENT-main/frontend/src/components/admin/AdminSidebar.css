@@ -1,0 +1,54 @@
+/* AdminSidebar.css */
+.sidebar-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #2d4b7c rgba(29, 57, 94, 0.9);
+  padding-bottom: 1rem;
+  height: calc(100vh - 120px); /* Account for header and user profile */
+}
+
+/* Webkit scrollbar styles */
+.sidebar-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-track {
+  background: rgba(29, 57, 94, 0.9);
+  border-radius: 10px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb {
+  background-color: #2d4b7c;
+  border-radius: 10px;
+  border: 1px solid #3a5a8c;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb:hover {
+  background-color: #3a5a8c;
+}
+
+/* Ensure the sidebar container takes full height */
+.sidebar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 16rem; /* w-64 */
+  background-color: #1d395e;
+  z-index: 40;
+  border-right: 1px solid rgba(229, 231, 235, 0.1);
+}
+
+/* User profile section */
+.user-profile-section {
+  padding: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+  background-color: rgba(29, 57, 94, 0.8);
+  backdrop-filter: blur(4px);
+}

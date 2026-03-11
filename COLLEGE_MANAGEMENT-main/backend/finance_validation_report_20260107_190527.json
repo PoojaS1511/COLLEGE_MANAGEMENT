@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-01-07T19:04:51.160093",
+  "base_url": "http://localhost",
+  "validation_results": {
+    "supabase_connection": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/supabase-connection (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "all_tables": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/tables (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "student_fees": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_studentfees (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "staff_payroll": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_staffpayroll (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "expense": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_expense (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "vendors": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_vendors (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "budget_allocation": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_budgetallocation (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "maintenance": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/table/finance_operationmaintenance (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    },
+    "payment_dates": {
+      "status": "\u274c ERROR",
+      "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/finance/validate/payment-date-check (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))",
+      "data": null
+    }
+  }
+}

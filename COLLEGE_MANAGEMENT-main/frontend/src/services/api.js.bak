@@ -1,0 +1,537 @@
+import SupabaseService from './supabaseService';
+
+class ApiService {
+  // ====================================
+  // Student Methods
+  // ====================================
+  static async getStudents(filters = {}) {
+    return SupabaseService.getStudents(filters);
+  }
+
+  static async getStudent(id) {
+    return SupabaseService.getStudent(id);
+  }
+
+  static async createStudent(studentData) {
+    return SupabaseService.createStudent(studentData);
+  }
+
+  static async updateStudent(id, updates) {
+    return SupabaseService.updateStudent(id, updates);
+  }
+
+  static async deleteStudent(id) {
+    return SupabaseService.deleteStudent(id);
+  }
+
+  // ====================================
+  // Department Methods
+  // ====================================
+  static async getAllDepartments() {
+    return SupabaseService.getAllDepartments();
+  }
+
+  // ====================================
+  // Subject Methods
+  // ====================================
+  static async getSubjects(filters = {}) {
+    try {
+      const response = await SupabaseService.getSubjects(filters);
+      if (response && response.success) {
+        return { 
+          success: true, 
+          data: Array.isArray(response.data) ? response.data : [] 
+        };
+      }
+      return { 
+        success: false, 
+        data: [], 
+        message: response?.message || 'No subjects found' 
+      };
+    } catch (error) {
+      console.error('Error in getSubjects:', error);
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch subjects' 
+      };
+    }
+  }
+
+  static async getSubject(id) {
+    try {
+      return await SupabaseService.getSubject(id);
+    } catch (error) {
+      console.error('Error in getSubject:', error);
+      return { 
+        success: false, 
+        data: null, 
+        message: error.message || 'Failed to fetch subject' 
+      };
+    }
+  }
+
+  // ====================================
+  // Exam Management Methods
+  // ====================================
+  static async getExams(filters = {}) {
+    try {
+      const response = await SupabaseService.getExams(filters);
+      if (response && response.success) {
+        return { 
+          success: true, 
+          data: Array.isArray(response.data) ? response.data : [] 
+        };
+      }
+      return { 
+        success: false, 
+        data: [], 
+        message: response?.message || 'No exams found' 
+      };
+    } catch (error) {
+      console.error('Error in getExams:', error);
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch exams' 
+      };
+    }
+  }
+
+  static async getExam(id) {
+    try {
+      return await SupabaseService.getExam(id);
+    } catch (error) {
+      console.error('Error in getExam:', error);
+      return { 
+        success: false, 
+        data: null, 
+        message: error.message || 'Failed to fetch exam' 
+      };
+    }
+  }
+
+  static async createExam(examData) {
+    try {
+      return await SupabaseService.createExam(examData);
+    } catch (error) {
+      console.error('Error in createExam:', error);
+      return { 
+        success: false, 
+        data: null, 
+        message: error.message || 'Failed to create exam' 
+      };
+    }
+  }
+
+  static async updateExam(id, updates) {
+    try {
+      return await SupabaseService.updateExam(id, updates);
+    } catch (error) {
+      console.error('Error in updateExam:', error);
+      return { 
+        success: false, 
+        data: null, 
+        message: error.message || 'Failed to update exam' 
+      };
+    }
+  }
+
+  static async deleteExam(id) {
+    try {
+      return await SupabaseService.deleteExam(id);
+    } catch (error) {
+      console.error('Error in deleteExam:', error);
+      return { 
+        success: false, 
+        message: error.message || 'Failed to delete exam' 
+      };
+    }
+  }
+
+  // ====================================
+  // Exam Results Methods
+  // ====================================
+  static async getExamResults(filters = {}) {
+    try {
+      const response = await SupabaseService.getExamResults(filters);
+      if (response && response.success) {
+        return { 
+          success: true, 
+          data: Array.isArray(response.data) ? response.data : [] 
+        };
+      }
+      return { 
+        success: false, 
+        data: [], 
+        message: response?.message || 'No exam results found' 
+      };
+    } catch (error) {
+      console.error('Error in getExamResults:', error);
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch exam results' 
+      };
+    }
+  }
+
+  static async upsertExamResult(resultData) {
+    try {
+      return await SupabaseService.upsertExamResult(resultData);
+    } catch (error) {
+      console.error('Error in upsertExamResult:', error);
+      return { 
+        success: false, 
+        data: null, 
+        message: error.message || 'Failed to save exam result' 
+      };
+    }
+  }
+
+  static async getStudentsForMarks(examId, subjectId) {
+    try {
+      return await SupabaseService.getStudentsForMarks(examId, subjectId);
+    } catch (error) {
+      console.error('Error in getStudentsForMarks:', error);
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch students for marks entry' 
+      };
+    }
+  }
+
+  static async getSubject(id) {
+    return SupabaseService.getSubject(id);
+  }
+
+  static async createSubject(subjectData) {
+    return SupabaseService.createSubject(subjectData);
+  }
+
+  static async updateSubject(id, updates) {
+    return SupabaseService.updateSubject(id, updates);
+  }
+
+  static async deleteSubject(id) {
+    return SupabaseService.deleteSubject(id);
+  }
+
+  // Attendance
+  static async getStudentAttendance(studentId, filters = {}) {
+    return SupabaseService.getStudentAttendance(studentId, filters);
+  }
+
+  static async getAttendanceRecords(filters = {}) {
+    try {
+      const response = await SupabaseService.getAttendanceRecords(filters);
+      console.log('Attendance records API response:', response);
+      
+      if (response && response.success) {
+        return { 
+          success: true, 
+          data: response.data || [],
+          message: response.message || ''
+        };
+      }
+      
+      return { 
+        success: false, 
+        data: [], 
+        message: response?.message || 'No attendance records found'
+      };
+    } catch (error) {
+      console.error('Error in getAttendanceRecords:', error);
+      
+      // In development, return sample data if there's an error
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Using sample attendance data in development');
+        return {
+          success: true,
+          data: [
+            {
+              id: '1',
+              date: new Date().toISOString().split('T')[0],
+              subject: { id: '1', name: 'Mathematics', code: 'MATH101' },
+              course: { id: '1', name: 'B.Tech CSE', code: 'CSE' },
+              present_count: 25,
+              total_students: 30,
+              status: 'completed'
+            },
+            {
+              id: '2',
+              date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+              subject: { id: '2', name: 'Physics', code: 'PHY101' },
+              course: { id: '1', name: 'B.Tech CSE', code: 'CSE' },
+              present_count: 28,
+              total_students: 30,
+              status: 'completed'
+            }
+          ],
+          message: 'Using sample attendance data'
+        };
+      }
+      
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch attendance records'
+      };
+    }
+  }
+
+  static async getAllCourses() {
+    try {
+      const response = await SupabaseService.getCourses();
+      console.log('Courses response from Supabase:', response);
+      
+      if (response && Array.isArray(response)) {
+        // Handle direct array response from Supabase
+        return { 
+          success: true, 
+          data: response.length > 0 ? response : [],
+          message: response.length > 0 ? '' : 'No courses found'
+        };
+      } else if (response && response.success) {
+        // Handle success response with data
+        return { 
+          success: true, 
+          data: response.data || [],
+          message: response.message || ''
+        };
+      } else if (response && !response.success) {
+        // Handle error response
+        return { 
+          success: false, 
+          data: [], 
+          message: response.message || 'Failed to fetch courses'
+        };
+      }
+      
+      // Fallback for unexpected response format
+      return { 
+        success: false, 
+        data: [], 
+        message: 'Unexpected response format from server'
+      };
+    } catch (error) {
+      console.error('Error in getAllCourses:', error);
+      // Fallback to sample data in development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Using sample courses data in development');
+        return {
+          success: true,
+          data: [
+            { id: 1, name: 'B.Tech CSE', code: 'CSE', duration: 4 },
+            { id: 2, name: 'B.Tech ECE', code: 'ECE', duration: 4 },
+            { id: 3, name: 'B.Tech ME', code: 'ME', duration: 4 },
+            { id: 4, name: 'B.Tech CE', code: 'CE', duration: 4 },
+            { id: 5, name: 'BBA', code: 'BBA', duration: 3 },
+            { id: 6, name: 'MBA', code: 'MBA', duration: 2 }
+          ],
+          message: 'Using sample data in development'
+        };
+      }
+      return { 
+        success: false, 
+        data: [], 
+        message: error.message || 'Failed to fetch courses'
+      };
+    }
+  }
+
+  // Exam Results
+  static async getStudentResults(studentId) {
+    try {
+      const response = await SupabaseService.getMarks({ student_id: studentId });
+      if (response && response.success) {
+        return { success: true, data: response.data || [] };
+      }
+      return { success: false, data: [], message: response?.message || 'No results found' };
+    } catch (error) {
+      console.error('Error in getStudentResults:', error);
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
+  // Marks Management
+  static async getMarks(filters = {}) {
+    try {
+      const response = await SupabaseService.getMarks(filters);
+      if (response && response.success) {
+        return { success: true, data: response.data || [] };
+      }
+      return { success: false, data: [], message: response?.message || 'No marks found' };
+    } catch (error) {
+      console.error('Error in getMarks:', error);
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
+  static async upsertMarks(marksData) {
+    try {
+      const response = await SupabaseService.upsertMarks(marksData);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Failed to save marks' };
+    } catch (error) {
+      console.error('Error in upsertMarks:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async getStudentsForMarks(examId, subjectId) {
+    try {
+      const response = await SupabaseService.getStudentsForMarks(examId, subjectId);
+      if (response && response.success) {
+        return { success: true, data: response.data || [] };
+      }
+      return { success: false, data: [], message: response?.message || 'No students found' };
+    } catch (error) {
+      console.error('Error in getStudentsForMarks:', error);
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
+  // Exams
+  static async getExams(filters = {}) {
+    try {
+      const response = await SupabaseService.getExams(filters);
+      if (response && response.success) {
+        return { success: true, data: response.data || [] };
+      }
+      return { success: false, data: [], message: response?.message || 'No exams found' };
+    } catch (error) {
+      console.error('Error in getExams:', error);
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
+  static async getExam(id) {
+    try {
+      const response = await SupabaseService.getExam(id);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Exam not found' };
+    } catch (error) {
+      console.error('Error in getExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async createExam(examData) {
+    try {
+      const response = await SupabaseService.createExam(examData);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Failed to create exam' };
+    } catch (error) {
+      console.error('Error in createExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async updateExam(id, examData) {
+    try {
+      const response = await SupabaseService.updateExam(id, examData);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Failed to update exam' };
+    } catch (error) {
+      console.error('Error in updateExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async deleteExam(id) {
+    try {
+      const response = await SupabaseService.deleteExam(id);
+      if (response && response.success) {
+        return { success: true };
+      }
+      return { success: false, message: response?.message || 'Failed to delete exam' };
+    } catch (error) {
+      console.error('Error in deleteExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Exams
+  static async getExams(filters = {}) {
+    try {
+      const response = await SupabaseService.getExams(filters);
+      if (response && response.success) {
+        return { success: true, data: response.data || [] };
+      }
+      return { success: false, data: [], message: response?.message || 'No exams found' };
+    } catch (error) {
+      console.error('Error in getExams:', error);
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
+  static async getExam(id) {
+    try {
+      const response = await SupabaseService.getExam(id);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Exam not found' };
+    } catch (error) {
+      console.error('Error in getExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async createExam(examData) {
+    try {
+      const response = await SupabaseService.createExam(examData);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Failed to create exam' };
+    } catch (error) {
+      console.error('Error in createExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async updateExam(id, examData) {
+    try {
+      const response = await SupabaseService.updateExam(id, examData);
+      if (response && response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, message: response?.message || 'Failed to update exam' };
+    } catch (error) {
+      console.error('Error in updateExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async deleteExam(id) {
+    try {
+      const response = await SupabaseService.deleteExam(id);
+      if (response && response.success) {
+        return { success: true };
+      }
+      return { success: false, message: response?.message || 'Failed to delete exam' };
+    } catch (error) {
+      console.error('Error in deleteExam:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Generic request method for any remaining API calls
+  static async request(endpoint, options = {}) {
+    console.warn(`Direct API call to ${endpoint} not implemented. Using Supabase methods directly.`);
+    throw new Error('API endpoint not implemented. Use Supabase methods directly.');
+  }
+}
+
+export default ApiService;

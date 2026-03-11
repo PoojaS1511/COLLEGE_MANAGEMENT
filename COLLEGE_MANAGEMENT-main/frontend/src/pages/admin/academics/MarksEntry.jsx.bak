@@ -1,0 +1,915 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  MenuItem,
+  Typography,
+  Select,
+  FormControl,
+  InputLabel,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
+  Grid,
+  FormHelperText
+} from '@mui/material';
+import { 
+  Save as SaveIcon, 
+  Refresh as RefreshIcon, 
+  Error as ErrorIcon,
+  CheckCircle as CheckCircleIcon
+} from '@mui/icons-material';
+import { format } from 'date-fns';
+import apiService from '../../../services/api';
+
+const MarksEntry = () => {
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [exams, setExams] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [selectedExam, setSelectedExam] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [marksData, setMarksData] = useState([]);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    content: '',
+    onConfirm: null
+  });
+  const [academicYear, setAcademicYear] = useState('2024-2025');
+  const [semester, setSemester] = useState('1');
+  const [course, setCourse] = useState('');
+  const [courses, setCourses] = useState([]);
+  const [isFormValid, setIsFormValid] = useState(false);
+
+  // Show snackbar notification
+  const showSnackbar = (message, severity = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  // Close snackbar
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  // Show confirmation dialog
+  const showConfirmDialog = (title, content, onConfirm) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      content,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        await onConfirm();
+      }
+    });
+  };
+  
+  // Fetch initial data on component mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch exams, subjects, and students in parallel
+        const [examsResponse, subjectsResponse, studentsResponse] = await Promise.all([
+          apiService.get('/exams'),
+          apiService.get('/subjects'),
+          apiService.get('/students?limit=1000') // Adjust limit as needed
+        ]);
+        
+        // Process responses
+        if (examsResponse?.data?.data) {
+          setExams(examsResponse.data.data);
+        } else {
+          throw new Error('Failed to load exams');
+        }
+        
+        if (subjectsResponse?.data?.data) {
+          setSubjects(subjectsResponse.data.data);
+        } else {
+          throw new Error('Failed to load subjects');
+        }
+        
+        if (studentsResponse?.data?.data) {
+          setStudents(studentsResponse.data.data);
+        } else {
+          throw new Error('Failed to load students');
+        }
+      } catch (error) {
+        console.error('Error in fetchInitialData:', error);
+        const errorMessage = error.response?.data?.message || error.message;
+        setError(errorMessage);
+        showSnackbar(errorMessage, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchInitialData();
+  }, []);
+  
+  // Handle exam selection
+  const handleExamChange = async (examId) => {
+    try {
+      setSelectedExam(examId);
+      setMarksData([]); // Clear previous marks data
+      
+      if (examId && selectedSubject) {
+        await fetchMarks(examId, selectedSubject);
+      }
+    } catch (error) {
+      console.error('Error in handleExamChange:', error);
+      showSnackbar('Failed to load exam data', 'error');
+    }
+  };
+  
+  // Handle subject selection
+  const handleSubjectChange = async (subjectId) => {
+    try {
+      setSelectedSubject(subjectId);
+      setMarksData([]); // Clear previous marks data
+      
+      if (selectedExam && subjectId) {
+        await fetchMarks(selectedExam, subjectId);
+      }
+    } catch (error) {
+      console.error('Error in handleSubjectChange:', error);
+      showSnackbar('Failed to load subject data', 'error');
+    }
+  };
+  
+  // Fetch marks for selected exam and subject
+  const fetchMarks = async (examId, subjectId) => {
+    if (!examId || !subjectId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch existing marks for the selected exam and subject
+      const response = await apiService.get(`/exams/${examId}/results?subject_id=${subjectId}`);
+      
+      if (response?.data?.data) {
+        // If we have existing marks, use them
+        setMarksData(response.data.data);
+      } else if (students.length > 0) {
+        // If no marks exist yet, initialize with student data
+        const initialMarks = students.map(student => ({
+          student_id: student.id,
+          exam_id: examId,
+          subject_id: subjectId,
+          roll_number: student.roll_number,
+          name: student.full_name || student.name,
+          marks_obtained: null,
+          max_marks: 100, // Default max marks, can be overridden by exam data
+          grade: '',
+          remarks: ''
+        }));
+        
+        setMarksData(initialMarks);
+      }
+      const response = await apiService.get(`/exams/${examId}/results?subject_id=${subjectId}`);
+      
+      if (response?.data?.data) {
+        // If we have existing marks, use them
+        setMarksData(response.data.data);
+      } else if (students.length > 0) {
+        // If no marks exist yet, initialize with student data
+        const initialMarks = students.map(student => ({
+          student_id: student.id,
+          exam_id: examId,
+          subject_id: subjectId,
+          roll_number: student.roll_number,
+          name: student.full_name || student.name,
+          marks_obtained: null,
+          max_marks: 100, // Default max marks, can be overridden by exam data
+          grade: '',
+          remarks: ''
+        }));
+        
+        setMarksData(initialMarks);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching marks:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to fetch marks data';
+      setError(errorMessage);
+      showSnackbar(errorMessage, 'error');
+      setMarksData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle marks submission
+  const handleSubmitMarks = async () => {
+    if (!selectedExam || !selectedSubject) {
+      setSnackbar({
+        open: true,
+        message: 'Please select both exam and subject',
+        severity: 'warning'
+      });
+      return;
+    }
+    
+    // Validate marks data
+    const hasInvalidMarks = marksData.some(mark => 
+      mark.marks_obtained !== null && 
+      (isNaN(parseFloat(mark.marks_obtained)) || 
+       parseFloat(mark.marks_obtained) < 0 || 
+       parseFloat(mark.marks_obtained) > (mark.max_marks || 100))
+    );
+    
+    if (hasInvalidMarks) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter valid marks (0 to max marks)',
+        severity: 'error'
+      });
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      
+      // Prepare the payload
+      const payload = {
+        exam_id: selectedExam,
+        subject_id: selectedSubject,
+        marks_data: marksData.map(mark => ({
+          student_id: mark.student_id,
+          marks_obtained: mark.marks_obtained !== null ? parseFloat(mark.marks_obtained) : null,
+          remarks: mark.remarks || '',
+          // Include grade if calculated on the frontend
+          ...(mark.grade && { grade: mark.grade })
+        })).filter(mark => mark.marks_obtained !== null) // Only include marks that have values
+      };
+      
+      // Submit to backend
+      const response = await apiService.post(`/exams/${selectedExam}/results/bulk`, payload);
+      
+      if (response?.data) {
+        // Refresh the marks data after successful save
+        await fetchMarks(selectedExam, selectedSubject);
+        
+        setSnackbar({
+          open: true,
+          message: 'Marks saved successfully',
+          severity: 'success',
+          autoHideDuration: 3000
+        });
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Error saving marks:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'Failed to save marks. Please try again.',
+        severity: 'error'
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  // Handle marks change for a student
+  const handleMarksChange = (studentId, field, value) => {
+    setMarksData(prev => 
+      prev.map(item => {
+        if (item.student_id === studentId) {
+          const updatedItem = { ...item, [field]: value };
+          
+          // Auto-calculate grade if marks are updated
+          if (field === 'marks_obtained' && value !== '') {
+            const marks = parseFloat(value);
+            if (!isNaN(marks)) {
+              updatedItem.grade = calculateGrade(marks, item.max_marks || 100);
+            } else {
+              updatedItem.grade = '';
+            }
+          }
+          
+          return updatedItem;
+        }
+        return item;
+      })
+    );
+  };
+  
+  // Calculate grade based on marks
+  const calculateGrade = (marks, maxMarks = 100) => {
+    if (marks === null || marks === undefined || isNaN(marks)) return '';
+    
+    const percentage = (marks / maxMarks) * 100;
+    
+    if (percentage >= 90) return 'A+';
+    if (percentage >= 80) return 'A';
+    if (percentage >= 70) return 'B+';
+    if (percentage >= 60) return 'B';
+    if (percentage >= 50) return 'C';
+    if (percentage >= 40) return 'D';
+    return 'F';
+  };
+  
+  // Handle save marks
+  const handleSaveMarks = () => {
+    showConfirmDialog(
+      'Save Marks',
+      'Are you sure you want to save these marks? This action cannot be undone.',
+      saveMarks
+    );
+  };
+  
+  // Save marks to the server
+  const saveMarks = async () => {
+    if (!selectedExam || !selectedSubject) {
+      showSnackbar('Please select both exam and subject', 'error');
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      
+      // Prepare the payload with only necessary fields
+      const payload = {
+        exam_id: selectedExam,
+        subject_id: selectedSubject,
+        marks_data: marksData
+          .filter(mark => mark.marks_obtained !== null && mark.marks_obtained !== '')
+          .map(mark => ({
+            student_id: mark.student_id,
+            marks_obtained: parseFloat(mark.marks_obtained),
+            grade: mark.grade,
+            remarks: mark.remarks || ''
+          }))
+      };
+      
+      // Send to API
+      await apiService.post('/marks/bulk', payload);
+      
+      // Refresh marks data
+      await fetchMarks(selectedExam, selectedSubject);
+      
+      showSnackbar('Marks saved successfully', 'success');
+    } catch (error) {
+      console.error('Error saving marks:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to save marks';
+      showSnackbar(errorMessage, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    content: '',
+    onConfirm: null
+  });
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  const showConfirmDialog = (title, content, onConfirm) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      content,
+      onConfirm: () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        onConfirm();
+      }
+    });
+  };
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (import.meta.env.DEV) {
+        // Use mock data in development
+        console.log('Using mock data in development mode');
+        setExams(mockExams);
+        setStudents(mockStudents);
+        setSubjects(mockSubjects);
+        return;
+      }
+      
+      // In production, fetch from API
+      const [examsRes, studentsRes, subjectsRes] = await Promise.all([
+        apiService.get('/exams'),
+        apiService.get('/students'),
+        apiService.get('/subjects')
+      ]);
+      
+      setExams(Array.isArray(examsRes?.data) ? examsRes.data : []);
+      setStudents(Array.isArray(studentsRes?.data) ? studentsRes.data : []);
+      setSubjects(Array.isArray(subjectsRes?.data) ? subjectsRes.data : []);
+      
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to load data. Using sample data instead.');
+      setExams(mockExams);
+      setStudents(mockStudents);
+      setSubjects(mockSubjects);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedExam && selectedSubject) {
+      fetchMarksData();
+    } else {
+      setMarksData([]);
+    }
+  }, [selectedExam, selectedSubject]);
+
+  const fetchMarksData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (import.meta.env.DEV) {
+        // Use mock data in development
+        const mockData = generateMockMarks(selectedExam, selectedSubject, students);
+        setMarksData(mockData);
+        return;
+      }
+      
+      // In production, fetch from API
+      const response = await apiService.get(
+        `/marks?exam_id=${selectedExam}&subject_id=${selectedSubject}`
+      );
+      
+      if (response && Array.isArray(response.data)) {
+        setMarksData(response.data);
+      } else {
+        // If no marks exist yet, initialize with student data
+        const initialMarks = students.map(student => ({
+          student_id: student.id,
+          exam_id: selectedExam,
+          subject_id: selectedSubject,
+          roll_number: student.roll_number,
+          name: student.name,
+          marks_obtained: 0,
+          max_marks: 100,
+          grade: '',
+          remarks: ''
+        }));
+        setMarksData(initialMarks);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching marks data:', error);
+      setError('Failed to load marks data. Using sample data instead.');
+      
+      // Fallback to mock data
+      const mockData = generateMockMarks(selectedExam, selectedSubject, students);
+      setMarksData(mockData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarksChange = (studentId, field, value) => {
+    setMarksData(prevData =>
+      prevData.map(item => {
+        if (item.student_id === studentId) {
+          const updatedItem = { ...item, [field]: value };
+          
+          // Auto-calculate grade if marks are updated
+          if (field === 'marks_obtained') {
+            updatedItem.grade = calculateGrade(parseInt(value) || 0, item.max_marks);
+          }
+          
+          return updatedItem;
+        }
+        return item;
+      })
+    );
+  };
+
+  const calculateGrade = (marks, maxMarks = 100) => {
+    if (marks === null || marks === undefined || isNaN(marks)) return '';
+    
+    const percentage = (marks / maxMarks) * 100;
+    
+    if (percentage >= 90) return 'A+';
+    if (percentage >= 80) return 'A';
+    if (percentage >= 70) return 'B+';
+    if (percentage >= 60) return 'B';
+    if (percentage >= 50) return 'C';
+    if (percentage >= 40) return 'D';
+    return 'F';
+  };
+
+  const handleSaveMarks = () => {
+    showConfirmDialog(
+      'Confirm Save',
+      'Are you sure you want to save these marks? This action cannot be undone.',
+      async () => performSaveMarks()
+    );
+  };
+
+  const performSaveMarks = async () => {
+    try {
+      setSaving(true);
+      
+      const payload = {
+        exam_id: selectedExam,
+        subject_id: selectedSubject,
+        marks_data: marksData.map(({ id, student_id, marks_obtained, grade, remarks }) => ({
+          id,
+          student_id,
+          marks_obtained: parseInt(marks_obtained) || 0,
+          grade,
+          remarks
+        }))
+      };
+      
+      if (import.meta.env.DEV) {
+        // Simulate API call in development
+        console.log('Saving marks (demo mode):', payload);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+        
+        // Update local state with saved data
+        const updatedMarks = marksData.map(mark => ({
+          ...mark,
+          marks_obtained: parseInt(mark.marks_obtained) || 0,
+          grade: calculateGrade(mark.marks_obtained, mark.max_marks)
+        }));
+        
+        setMarksData(updatedMarks);
+        showSnackbar('Marks saved successfully! (Demo Mode)', 'success');
+        return;
+      }
+      
+      // In production, save to API
+      const response = await apiService.post('/marks/bulk', payload);
+      
+      if (response?.success) {
+        showSnackbar('Marks saved successfully!', 'success');
+        fetchMarksData(); // Refresh data
+      } else {
+        throw new Error(response?.error || 'Failed to save marks');
+      }
+      
+    } catch (error) {
+      console.error('Error saving marks:', error);
+      showSnackbar(
+        error.message || 'Failed to save marks. Please try again.',
+        'error'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getSelectedExam = () => {
+
+  return (
+    <Box>
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>Marks Entry</Typography>
+        
+        {error && (
+          <Alert 
+            severity="warning" 
+            sx={{ mb: 2 }}
+            action={
+              <Button 
+                color="inherit" 
+                size="small"
+                onClick={fetchData}
+                startIcon={<RefreshIcon />}
+              >
+                Retry
+              </Button>
+            }
+          >
+            {error}
+          </Alert>
+        )}
+        
+        <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+          <Box display="flex" gap={2} flexWrap="wrap" alignItems="flex-end">
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 250 }}>
+              <InputLabel>Select Exam</InputLabel>
+              <Select
+                value={selectedExam}
+                onChange={(e) => {
+                  setSelectedExam(e.target.value);
+                  setSelectedSubject('');
+                }}
+                label="Select Exam"
+                disabled={loading || saving}
+              >
+                <MenuItem value="">
+                  <em>Select Exam</em>
+                </MenuItem>
+                {exams.map((exam) => (
+                  <MenuItem key={exam.id} value={exam.id}>
+                    {exam.name} ({exam.academic_year})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 250 }}>
+              <InputLabel>Select Subject</InputLabel>
+              <Select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                label="Select Subject"
+                disabled={!selectedExam || loading || saving}
+              >
+                <MenuItem value="">
+                  <em>Select Subject</em>
+                </MenuItem>
+                {subjects.map((subject) => (
+                  <MenuItem key={subject.id} value={subject.id}>
+                    {subject.name} ({subject.code})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Box flexGrow={1} display="flex" justifyContent="flex-end" gap={1}>
+              <Tooltip title="Refresh">
+                <span>
+                  <IconButton 
+                    onClick={fetchMarksData} 
+                    disabled={!selectedExam || !selectedSubject || loading || saving}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={
+                  saving ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : (
+                    <SaveIcon />
+                  )
+                }
+                onClick={handleSaveMarks}
+                disabled={
+                  !selectedExam || 
+                  !selectedSubject || 
+                  marksData.length === 0 || 
+                  loading || 
+                  saving
+                }
+              >
+                {saving ? 'Saving...' : 'Save Marks'}
+              </Button>
+            </Box>
+          </Box>
+          
+          {selectedExam && selectedSubject && (
+            <Box mt={2}>
+              <Typography variant="subtitle2" color="textSecondary">
+                <strong>Selected:</strong> {getSelectedExam()?.name} - {getSelectedSubject()?.name} 
+                (Max Marks: {getSelectedExam()?.max_marks || 100})
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
+
+      {loading && marksData.length === 0 ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+          <CircularProgress />
+          <Typography variant="body1" sx={{ ml: 2 }}>Loading marks data...</Typography>
+        </Box>
+      ) : marksData.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Roll No.</TableCell>
+                <TableCell>Student Name</TableCell>
+                <TableCell align="center">Marks Obtained</TableCell>
+                <TableCell align="center">Max Marks</TableCell>
+                <TableCell align="center">Grade</TableCell>
+                <TableCell>Remarks</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {marksData.map((row) => {
+                const maxMarks = row.max_marks || 100;
+                const marksObtained = parseInt(row.marks_obtained) || 0;
+                const grade = calculateGrade(marksObtained, maxMarks);
+                
+                return (
+                  <TableRow key={`${row.student_id}-${row.exam_id}-${row.subject_id}`}>
+                    <TableCell>{row.roll_number}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={row.marks_obtained}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          handleMarksChange(
+                            row.student_id,
+                            'marks_obtained',
+                            Math.min(value, maxMarks)
+                          );
+                        }}
+                        onBlur={() => {
+                          // Ensure grade is updated when leaving the field
+                          handleMarksChange(
+                            row.student_id,
+                            'grade',
+                            calculateGrade(marksObtained, maxMarks)
+                          );
+                        }}
+                        inputProps={{
+                          min: 0,
+                          max: maxMarks,
+                          style: { textAlign: 'center', width: '80px' }
+                        }}
+                        size="small"
+                        disabled={saving}
+                      />
+                    </TableCell>
+                    <TableCell align="center">{maxMarks}</TableCell>
+                    <TableCell align="center">
+                      <Box
+                        sx={{
+                          display: 'inline-block',
+                          p: '4px 12px',
+                          borderRadius: '12px',
+                          bgcolor: grade === 'F' ? 'error.light' : 'success.light',
+                          color: grade === 'F' ? 'error.contrastText' : 'success.contrastText',
+                          fontWeight: 'bold',
+                          minWidth: '32px',
+                          textAlign: 'center',
+                          fontSize: '0.8rem',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        {grade || '-'}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        value={row.remarks || ''}
+                        onChange={(e) =>
+                          handleMarksChange(row.student_id, 'remarks', e.target.value)
+                        }
+                        placeholder="Remarks"
+                        size="small"
+                        fullWidth
+                        disabled={saving}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="200px"
+          bgcolor="background.paper"
+          borderRadius={1}
+          border="1px dashed"
+          borderColor="divider"
+        >
+          <Box textAlign="center" maxWidth="400px">
+            <ErrorIcon color="action" sx={{ fontSize: 48, mb: 2 }} />
+            <Typography variant="h6" color="textSecondary" gutterBottom>
+              No Data Available
+            </Typography>
+            <Typography variant="body2" color="textSecondary" paragraph>
+              {!selectedExam || !selectedSubject
+                ? 'Please select an exam and subject to view or enter marks.'
+                : 'No student data found for the selected criteria.'}
+            </Typography>
+            {!selectedExam || !selectedSubject ? (
+              <Button 
+                variant="outlined" 
+                color="primary"
+                onClick={() => {
+                  if (!selectedExam && exams.length > 0) {
+                    setSelectedExam(exams[0].id);
+                  }
+                  if (!selectedSubject && subjects.length > 0) {
+                    setSelectedSubject(subjects[0].id);
+                  }
+                }}
+              >
+                Select Options
+              </Button>
+            ) : (
+              <Button 
+                variant="outlined" 
+                color="primary"
+                onClick={fetchData}
+                startIcon={<RefreshIcon />}
+              >
+                Refresh Data
+              </Button>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+          icon={snackbar.severity === 'success' ? <CheckCircleIcon /> : undefined}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <Typography>{confirmDialog.content}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+            color="primary"
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDialog.onConfirm} 
+            color="primary"
+            variant="contained"
+            disabled={saving}
+            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : null}
+          >
+            {saving ? 'Processing...' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default MarksEntry;

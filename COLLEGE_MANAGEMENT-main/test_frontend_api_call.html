@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend API Call</title>
+</head>
+<body>
+    <h1>Testing Frontend API Call</h1>
+    <button onclick="testAPICall()">Test API Call</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPICall() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing API call...';
+
+            try {
+                const API_URL = 'http://localhost:5001';
+
+                // Test the API call directly
+                const response = await fetch(`${API_URL}/api/quality/faculty?page=1&limit=5`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                resultDiv.innerHTML = `
+                    <h2>API Call Result:</h2>
+                    <p>Status: ${response.status}</p>
+                    <p>Success: ${data.success}</p>
+                    <p>Data Length: ${data.data ? data.data.length : 0}</p>
+                    <p>Data: ${JSON.stringify(data, null, 2)}</p>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hall Ticket - {{ exam.name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.4;
+            color: #000;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 10mm;
+            background-color: #ffffff;
+            font-size: 11pt;
+        }
+
+        .document-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14pt;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #000;
+            padding: 15px;
+        }
+
+        .header h1 {
+            color: #000;
+            margin: 0 0 5px 0;
+            font-size: 16pt;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .header .college-name {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .header .address {
+            font-size: 10pt;
+            margin: 3px 0;
+            line-height: 1.3;
+        }
+
+        .header .contact {
+            font-size: 9pt;
+            margin: 2px 0;
+        }
+
+        .header .exam-title {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 10px;
+            text-decoration: underline;
+        }
+
+        .candidate-section {
+            margin: 20px 0;
+            border: 1px solid #000;
+            padding: 15px;
+            position: relative;
+        }
+
+        .photo-box {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            width: 120px;
+            height: 140px;
+            border: 2px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f5f5;
+        }
+
+        .photo-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+
+        .candidate-info {
+            margin-right: 140px;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+
+        .info-table td {
+            padding: 6px 10px;
+            border: none;
+        }
+
+        .info-table .label {
+            font-weight: bold;
+            width: 180px;
+            vertical-align: top;
+        }
+
+        .info-table .value {
+            border-bottom: 1px solid #000;
+        }
+
+        .exam-schedule {
+            margin: 20px 0;
+            border: 2px solid #000;
+            padding: 15px;
+        }
+
+        .exam-schedule h3 {
+            margin: 0 0 10px 0;
+            font-size: 12pt;
+            text-align: center;
+            text-decoration: underline;
+        }
+
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+
+        .schedule-table th,
+        .schedule-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .schedule-table th {
+            background-color: #e0e0e0;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .instructions {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #000;
+        }
+
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            font-size: 11pt;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .instructions ol {
+            margin: 5px 0;
+            padding-left: 25px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+
+        .note-section {
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px solid #000;
+            background-color: #f9f9f9;
+        }
+
+        .note-section strong {
+            text-decoration: underline;
+        }
+
+        .signature-section {
+            margin-top: 30px;
+            text-align: right;
+        }
+
+        .signature-line {
+            display: inline-block;
+            width: 200px;
+            border-top: 1px solid #000;
+            margin-top: 50px;
+            text-align: center;
+            padding-top: 5px;
+        }
+
+        .footer-note {
+            margin-top: 20px;
+            font-size: 9pt;
+            text-align: center;
+            font-style: italic;
+            border-top: 1px solid #000;
+            padding-top: 10px;
+        }
+
+        .important-box {
+            border: 2px solid #000;
+            padding: 10px;
+            margin: 15px 0;
+            background-color: #fffacd;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="document-title">
+        DUPLICATE ADMISSION CERTIFICATE (CANDIDATE'S COPY)
+    </div>
+
+    <div class="header">
+        <div class="college-name">CUBE ARTS & ENGINEERING COLLEGE</div>
+        <div class="address">
+            Excellence in Education<br>
+            Koramangala, Bangalore - 560 034<br>
+        </div>
+        <div class="contact">
+            Ph: 080-25502520 / 25527342 | Fax: 080-25520653<br>
+            Website: http://www.cubearts.edu.in | Email: exams@cubearts.edu.in
+        </div>
+        <div class="exam-title">
+            {{ exam.name }} - {{ exam.exam_type or 'Regular Examination' }}
+        </div>
+    </div>
+
+    <div class="candidate-section">
+        <div class="photo-box">
+            {% if student.photo_url %}
+                <img src="{{ student.photo_url }}" alt="Student Photo">
+            {% else %}
+                <div style="text-align: center; font-size: 10pt;">AFFIX<br>PASSPORT<br>SIZE<br>PHOTO</div>
+            {% endif %}
+        </div>
+
+        <div class="candidate-info">
+            <table class="info-table">
+                <tr>
+                    <td class="label">Name and Address of Candidate</td>
+                    <td class="value">
+                        {{ student.full_name or student.name }}<br>
+                        {{ student.address or 'Address Not Available' }}<br>
+                        {% if student.phone %}Phone: {{ student.phone }}{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">Roll Number</td>
+                    <td class="value">{{ student.roll_no or student.register_number or 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Ticket/Seat Number</td>
+                    <td class="value">{{ student.id[:8] | upper }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Sex</td>
+                    <td class="value">{{ student.gender or 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Category</td>
+                    <td class="value">{{ student.category or student.quota_type or 'General' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Date of Birth</td>
+                    <td class="value">{{ student.date_of_birth or 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Course</td>
+                    <td class="value">{{ student.course_name or 'N/A' }} - Semester {{ exam.semester or student.current_semester or 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="clearfix"></div>
+
+    <div class="exam-schedule">
+        <h3>SCHEDULE OF EXAMINATION</h3>
+        <table class="schedule-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Timings</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="text-align: center;">{{ exam.date }}</td>
+                    <td>
+                        <strong>{{ exam.subject_name or 'Subject Name' }}</strong><br>
+                        {% if exam.subject_code %}Code: {{ exam.subject_code }}{% endif %}<br>
+                        {% if exam.description %}{{ exam.description }}{% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        {{ exam.start_time }}<br>
+                        TO<br>
+                        {{ exam.end_time }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="info-table" style="margin-top: 15px;">
+            <tr>
+                <td class="label">Exam Venue Code</td>
+                <td class="value">{{ exam.venue_code or 'CUBE-01' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Reporting Time of the Candidate</td>
+                <td class="value">{{ exam.reporting_time or '30 minutes before exam time' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Name and Address of Examination Venue</td>
+                <td class="value">{{ exam.venue or 'CUBE Arts & Engineering College, Bangalore' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="important-box">
+        Important: Candidate should not paste any photograph on this ADMISSION CERTIFICATE
+    </div>
+
+    <div class="instructions">
+        <h4>Please note and follow instructions carefully for adherence:</h4>
+        <ol>
+            <li>In case of mismatch in scanned photo/signature, candidate shall intimate the College Office immediately and will collect his/her corrected Certificate from the Examination Department. Otherwise the Candidate will not be allowed to appear in the Examination.</li>
+            <li>Please bring correcting fluid & Black/Blue Ball Pen for filling/writing OMR/Answer sheet in the Examination as per the instructions on the Question Answer Booklet.</li>
+            <li>Your ticket number is the Seat Number in the examination hall. Please bring four photographs and photo-bearing ID proof for verification.</li>
+            <li>This is a Candidate's Copy and should be preserved until the final result is declared. This should be shown at the entry of Examination Venue and when asked by invigilators or any other examination conducting authority.</li>
+            <li>You are required to put Left Hand Thumbs Impression (LTI) and Signature in the Admission Certificate and Attendance Sheet before the invigilator in the Examination Room. Admission Certificate and Attendance Sheet will be provided by the invigilator and would be collected by him. To clean ink you may carry a small piece of cotton cloth.</li>
+            <li>Mobile phone/Pager/Electronic gadgets are completely banned in the Examination Hall. If any of the candidates brings such items and deposits them with the Supervisor or Invigilator or their representatives, they do so at their own risk. College or any other functionary on examination duty will not be responsible for any loss thereof.</li>
+            <li>Candidates must report to the examination center at least 30 minutes before the scheduled time.</li>
+            <li>Any form of malpractice will lead to cancellation of the examination and disciplinary action.</li>
+        </ol>
+    </div>
+
+    <div class="note-section">
+        <strong>Note:</strong> There will be negative marking of 0.25 mark for each wrong answer (if applicable).
+        A list of candidates not acting as per instructions will be sent to the authorities to consider disqualification for the examination.
+    </div>
+
+    <div class="signature-section">
+        <div>
+            <div style="margin-bottom: 5px;">{{ exam.academic_year or '2024-2025' }}</div>
+            <div class="signature-line">
+                Controller of Examinations
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        <strong>IMPORTANT NOTE:</strong> This admission certificate should not be sent back merely for correction in particulars of the candidate.<br>
+        <strong>ATTENTION:</strong> This is a system-generated hall ticket. Preserve this copy until the final results are declared.
+    </div>
+</body>
+</html>
